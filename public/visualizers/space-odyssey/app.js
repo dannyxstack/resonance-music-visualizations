@@ -1,6 +1,8 @@
 import { loadLocalAudio, audioErrorMessage } from '../perth/local-audio.js';
 import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from '../shared/analysis.js';
 import { travelingDepth, roadPoint, movingStar } from './scene-motion.js';
+import { registerScene } from '../shared/scene.js';
+import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
 import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 
 const $ = id => document.getElementById(id);
@@ -80,8 +82,9 @@ function ensureAudioGraph() {
 
 function showBpm(result, message) {
   $('bpmValue').textContent = result ? result.bpm.toFixed(1) : '--';
-  $('sceneBpm').textContent = result ? `${result.bpm.toFixed(1)} BPM` : '-- BPM';
   $('firstBeatOffset').textContent = result ? `${firstBeatOffset(result).toFixed(2)} 秒` : '-- 秒';
+  $('transportBpm').textContent = $('bpmValue').textContent;
+  $('transportOffset').textContent = $('firstBeatOffset').textContent;
   setStatus('bpmStatus', message);
 }
 
@@ -179,7 +182,6 @@ async function selectAudio(file) {
   state.audioFile = file;
   levels.fill(0);
   $('trackName').textContent = file.name;
-  $('sceneTrack').textContent = file.name;
   setStatus('audioStatus', '正在加载本地音乐…');
   syncControls();
   // Start the audio context from the file-selection gesture when possible.
@@ -250,8 +252,9 @@ function renderBackgroundCache() {
 
 function resize() {
   state.dpr = Math.min(window.devicePixelRatio || 1, 1.7);
-  state.width = window.innerWidth;
-  state.height = window.innerHeight;
+  const bounds = $('scenePreview').getBoundingClientRect();
+  state.width = Math.max(1, bounds.width);
+  state.height = Math.max(1, bounds.height);
   canvas.width = Math.round(state.width * state.dpr);
   canvas.height = Math.round(state.height * state.dpr);
   ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
@@ -259,7 +262,7 @@ function resize() {
 }
 
 function roadGeometry() {
-  return depth => roadPoint(depth, state.width, state.height, !root.classList.contains('panel-collapsed'));
+  return depth => roadPoint(depth, state.width, state.height, false);
 }
 
 function drawRail(pointAt, side, glow) {
@@ -398,21 +401,17 @@ function drawStars(time) {
   }
 }
 
-function drawFrame(now) {
-  state.frame = requestAnimationFrame(drawFrame);
-  const dt = state.lastFrameTime ? Math.min(0.1, (now - state.lastFrameTime) / 1000) : 0;
-  state.lastFrameTime = now;
-  state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, audio.currentTime, state.audioReady && !audio.paused && !audio.ended, dt, state.lowLevel);
+function renderScene(time, dt) {
+  state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, time, state.audioReady && !audio.paused && !audio.ended, dt, state.lowLevel);
   const { width: w, height: h } = state;
   if (!w || !h) return;
   if (state.backgroundImage?.naturalWidth) ctx.drawImage(state.backgroundCanvas, 0, 0, w, h);
   else { ctx.fillStyle = '#050713'; ctx.fillRect(0, 0, w, h); }
-  const time = state.audioReady ? audio.currentTime : 0;
   drawStars(time);
 
   let beatPulse = 0;
   if (state.bpm && state.audioReady && !audio.paused && !audio.ended) {
-    beatPulse = beatEnergyAt(state.bpm, audio.currentTime);
+    beatPulse = beatEnergyAt(state.bpm, time);
   }
   const visualPulse = state.lowEnvelope && ($('leftEnergyMethod').value === 'low-envelope' || $('rightEnergyMethod').value === 'low-envelope')
     ? state.lowLevel : beatPulse;
@@ -421,6 +420,13 @@ function drawFrame(now) {
   updateSpectrum();
   drawRoad(pointAt, visualPulse, time);
   drawBars(pointAt, beatPulse, time);
+}
+
+function drawFrame(now) {
+  state.frame = requestAnimationFrame(drawFrame);
+  const dt = state.lastFrameTime ? Math.min(0.1, (now - state.lastFrameTime) / 1000) : 0;
+  state.lastFrameTime = now;
+  renderScene(state.audioReady ? audio.currentTime : 0, dt);
 }
 
 let savedSettings = {};
@@ -504,4 +510,8 @@ setPanel(!window.matchMedia('(max-width: 640px)').matches);
 syncSettings();
 resize();
 setBackground('nebula.png');
+registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });
+bindAnalysisSummary($('bpmStatus'), $('lowEnvelopeStatus'), $('transportAnalysis'));
+bindPreviewFullscreen($('scenePreview'), $('fullscreenPreview'));
+new ResizeObserver(resize).observe($('scenePreview'));
 state.frame = requestAnimationFrame(drawFrame);

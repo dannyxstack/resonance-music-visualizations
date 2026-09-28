@@ -1,3 +1,5 @@
+@import '../../../public/visualizers/shared/scene-preview.css';
+
 :root {
   color: #edf1f7;
   background: #05070b;
@@ -820,3 +822,44 @@ h1 {
     transform: scale(calc(1 + var(--energy) * 0.035));
   }
 }
+
+/* The map is now fully painted into one video preview canvas. */
+.app{grid-template-rows:auto minmax(0,1fr) auto}
+.app-header{align-items:center;pointer-events:auto}
+.header-actions{display:flex;align-items:center;gap:10px}
+.control-toggle{min-height:34px;padding:0 12px;border:1px solid #c7d8f655;border-radius:6px;background:#172131;color:#f1f6ff;cursor:pointer}
+.visualization-shell{padding:8px 16px;overflow:hidden}
+.bay-preview-frame{width:min(100%,calc((100dvh - 240px)*16/9));max-width:1180px}
+.bay-scene-canvas{width:100%;height:100%;display:block}
+.control-zone{width:min(100%,1240px);max-height:44dvh;overflow:auto;justify-self:center;padding:0 12px 12px}
+.control-zone .controls{margin:0}
+.control-zone .company-catalog{position:relative;right:auto;bottom:auto;justify-items:stretch;margin-top:10px}
+.control-zone .catalog-panel{width:100%;max-height:300px}
+.control-zone .debug-panel{position:relative;right:auto;top:auto;width:100%;margin-top:10px}
+.controls-collapsed-note{margin:0 16px 12px;color:#adbed1;font-size:12px;text-align:center}
+@media(max-width:700px){body{overflow:auto}.app{height:auto;min-height:100dvh;grid-template-rows:auto auto auto}.app-header{flex-wrap:wrap;gap:8px}.visualization-shell{padding:0}.bay-preview-frame{width:100%}.controls{margin:10px}.header-actions{width:100%;justify-content:space-between}}
+
+/* Shared workspace: preview, right parameters, bottom audio transport. */
+.app{grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:auto minmax(0,1fr) auto;gap:0 12px;padding:0 12px 12px}
+.app-header{grid-column:1/-1;grid-row:1}
+.visualization-shell{grid-column:1;grid-row:2;min-width:0}
+.bay-preview-frame{width:min(100%,calc((100dvh - 205px)*16/9))}
+.control-zone{grid-column:2;grid-row:2;width:100%;height:100%;max-height:none;min-height:0;overflow:auto;padding:0;margin:0}
+.control-zone .controls{width:100%;margin:0;display:flex;flex-direction:column;align-items:stretch;gap:14px}
+.parameter-controls h2{margin:0;color:#f5f7fb;font-size:19px}
+.parameter-controls label{width:100%}
+.parameter-controls .bpm-method-control,.parameter-controls .intensity-control{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.parameter-controls .bpm-method-control select{width:100%}
+.parameter-controls .catalog-icon-button{align-self:flex-start;min-width:145px;padding:0 10px}
+.bay-transport{grid-column:1/-1;grid-row:3;display:grid;gap:10px;padding:12px 16px;border:1px solid rgba(221,232,248,.17);border-radius:8px;background:#0b121f;color:#eaf1ff}
+.bay-transport-primary{display:flex;align-items:center;gap:12px;min-width:0}
+.bay-transport-primary .seek{flex:1;min-width:0;accent-color:#a8c9f7}
+.bay-transport-primary .file-button{cursor:pointer}
+.transport-time{font:11px monospace;color:#aebed2}
+.bay-transport-secondary{display:grid;grid-template-columns:minmax(140px,1.3fr) minmax(180px,2fr) auto auto;gap:12px;align-items:center;min-width:0;font-size:11px;color:#b9c8d9}
+.bay-transport-secondary>*{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bay-transport-secondary strong{color:#f2dfb7;font-variant-numeric:tabular-nums}
+.controls-collapsed-note{margin:0;padding:16px}
+.scene-preview-frame:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#050713}
+.scene-preview-frame:fullscreen>canvas{width:100%!important;height:100%!important}
+@media(max-width:700px){.app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto auto;padding:0 0 8px;gap:8px}.app-header{grid-column:1;grid-row:1}.visualization-shell{grid-column:1;grid-row:2}.bay-preview-frame{width:100%}.control-zone{grid-column:1;grid-row:3;width:calc(100% - 16px);height:min(50dvh,460px);margin:auto}.bay-transport{grid-column:1;grid-row:4}.bay-transport-primary{gap:7px}.bay-transport-secondary{grid-template-columns:1fr 1fr}.header-actions{flex-wrap:wrap}}

@@ -1,22 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { companies } from "../config/companies";
-import { connections } from "../config/connections";
-import type { AudioFeatures } from "../types/audio";
-import type { BrandAnimationMode } from "../types/company";
-import type { TempoAnalysis } from "../types/tempo";
-import { useAnimationFrame } from "../hooks/useAnimationFrame";
-import { ParticleEngine } from "../particles/ParticleEngine";
-import { BayAreaMap } from "../visual/BayAreaMap";
-import { CompanyNode } from "../visual/CompanyNode";
-import { NetworkLayer } from "../visual/NetworkLayer";
-import { setCanvasSize } from "../visual/VisualEngine";
-import { updateLowFrequencyLevel } from "../../../../public/visualizers/shared/low-envelope.js";
-import { energyByMethod } from "../../../../public/visualizers/shared/analysis.js";
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
+import { companies } from '../config/companies';
+import type { AudioFeatures } from '../types/audio';
+import type { TempoAnalysis } from '../types/tempo';
+import { useAnimationFrame } from '../hooks/useAnimationFrame';
+import { CanvasMapScene } from '../visual/CanvasMapScene';
+import { setCanvasSize } from '../visual/VisualEngine';
+import { updateLowFrequencyLevel } from '../../../../public/visualizers/shared/low-envelope.js';
+import { registerScene } from '../../../../public/visualizers/shared/scene.js';
 
 interface VisualizationProps {
   featuresRef: MutableRefObject<AudioFeatures>;
-  features: AudioFeatures;
-  animationMode: BrandAnimationMode;
   masterIntensity: number;
   reducedMotion: boolean;
   audioElement: HTMLAudioElement;
@@ -28,117 +21,69 @@ interface VisualizationProps {
 }
 
 export function Visualization({
-  featuresRef,
-  features,
-  animationMode,
-  masterIntensity,
-  reducedMotion,
-  audioElement,
-  tempo,
-  energyMethod,
-  lowEnvelope,
-  onMetrics,
-  onNodeLayout,
+  featuresRef, masterIntensity, reducedMotion, audioElement, tempo,
+  energyMethod, lowEnvelope, onMetrics, onNodeLayout,
 }: VisualizationProps): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const shellRef = useRef<HTMLDivElement | null>(null);
-  const mapFrameRef = useRef<HTMLDivElement | null>(null);
-  const engine = useMemo(() => new ParticleEngine(), []);
-  const fpsRef = useRef(60);
+  const scene = useMemo(() => new CanvasMapScene(), []);
   const lowLevelRef = useRef(0);
-  const [renderFeatures, setRenderFeatures] = useState(features);
+  const fpsRef = useRef(60);
+  const onNodeLayoutRef = useRef(onNodeLayout);
+  onNodeLayoutRef.current = onNodeLayout;
 
   useEffect(() => { lowLevelRef.current = 0; }, [lowEnvelope]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setRenderFeatures(featuresRef.current), 120);
-    return () => window.clearInterval(interval);
-  }, [featuresRef]);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const updateLayout = (): void => {
+      const rect = canvas.getBoundingClientRect();
+      onNodeLayoutRef.current(Object.fromEntries(companies.map(company => [company.id, {
+        x: Math.round(rect.left + rect.width * company.x),
+        y: Math.round(rect.top + rect.height * company.y),
+      }])));
+    };
+    updateLayout();
+    const observer = new ResizeObserver(updateLayout);
+    observer.observe(canvas);
+    window.addEventListener('resize', updateLayout);
+    return () => { observer.disconnect(); window.removeEventListener('resize', updateLayout); };
+  }, []);
+
+  const render = (time: number, deltaMs: number): void => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const { width, height } = setCanvasSize(canvas);
+    lowLevelRef.current = updateLowFrequencyLevel(lowEnvelope, time,
+      !audioElement.paused && !audioElement.ended, Math.min(.1, deltaMs / 1000), lowLevelRef.current);
+    scene.render(ctx, width, height, featuresRef.current, tempo, time, deltaMs,
+      reducedMotion, energyMethod, lowLevelRef.current, Boolean(lowEnvelope), masterIntensity);
+    const instantFps = 1000 / Math.max(1, deltaMs);
+    fpsRef.current += (instantFps - fpsRef.current) * .05;
+    onMetrics(fpsRef.current, scene.particles.count);
+  };
+  const renderRef = useRef(render);
+  renderRef.current = render;
 
   useEffect(() => {
-    const mapFrame = mapFrameRef.current;
-    if (!mapFrame) {
-      return undefined;
-    }
-
-    const updateLayout = (): void => {
-      const rect = mapFrame.getBoundingClientRect();
-      onNodeLayout(
-        Object.fromEntries(
-          companies.map((company) => [
-            company.id,
-            {
-              x: Math.round(rect.left + rect.width * company.x),
-              y: Math.round(rect.top + rect.height * company.y),
-            },
-          ]),
-        ),
-      );
-    };
-
-    updateLayout();
-    const resizeObserver = new ResizeObserver(updateLayout);
-    resizeObserver.observe(mapFrame);
-    window.addEventListener("resize", updateLayout);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateLayout);
-    };
-  }, [onNodeLayout]);
-
-  useAnimationFrame((deltaMs, now) => {
     const canvas = canvasRef.current;
-    const shell = shellRef.current;
-    if (!canvas || !shell) {
-      return;
-    }
+    if (!canvas) return;
+    registerScene({
+      canvas,
+      resize: () => { setCanvasSize(canvas); },
+      renderFrame: (time, delta) => renderRef.current(time, delta * 1000),
+      getTime: () => audioElement.currentTime || 0,
+    });
+  }, [audioElement]);
 
-    const context = canvas.getContext("2d");
-    if (!context) {
-      return;
-    }
-
-    const activeFeatures = featuresRef.current;
-    lowLevelRef.current = updateLowFrequencyLevel(lowEnvelope, audioElement.currentTime,
-      !audioElement.paused && !audioElement.ended, Math.min(0.1, deltaMs / 1000), lowLevelRef.current);
-    const drive = energyByMethod(energyMethod, activeFeatures.bass, 0, false, lowLevelRef.current, Boolean(lowEnvelope));
-    const { width, height } = setCanvasSize(canvas);
-    shell.style.setProperty("--global-rms", `${(energyMethod === 'low-envelope' ? drive : activeFeatures.rms) * masterIntensity}`);
-    shell.style.setProperty("--global-bass", `${drive * masterIntensity}`);
-    shell.style.setProperty("--global-high", `${activeFeatures.high * masterIntensity}`);
-    shell.style.setProperty("--global-onset", `${activeFeatures.onset * masterIntensity}`);
-
-    engine.render(context, width, height, companies, activeFeatures, deltaMs, now, reducedMotion);
-
-    const instantFps = 1000 / Math.max(1, deltaMs);
-    fpsRef.current += (instantFps - fpsRef.current) * 0.05;
-    onMetrics(fpsRef.current, engine.count);
-  });
+  useAnimationFrame((deltaMs) => render(audioElement.currentTime || 0, deltaMs));
 
   return (
-    <main ref={shellRef} className="visualization-shell" aria-label="Bay Area audio reactive visualization">
-      <div ref={mapFrameRef} className="map-frame">
-        <BayAreaMap rms={renderFeatures.rms * masterIntensity} bass={renderFeatures.bass * masterIntensity} />
-        <NetworkLayer companies={companies} connections={connections} features={renderFeatures} />
-        <div className="node-layer" aria-label="Technology company nodes">
-          {companies.map((company) => (
-            <CompanyNode
-              key={company.id}
-              config={company}
-              audioFeaturesRef={featuresRef}
-              animationMode={animationMode}
-              reducedMotion={reducedMotion}
-              audioElement={audioElement}
-              tempo={tempo}
-              energyMethod={energyMethod}
-              lowLevelRef={lowLevelRef}
-              lowReady={Boolean(lowEnvelope)}
-            />
-          ))}
-        </div>
-        <canvas ref={canvasRef} className="particle-canvas" aria-hidden="true" />
-        <div className="global-ripple" />
+    <main className="visualization-shell" aria-label="Bay Area video preview">
+      <div className="scene-preview-frame bay-preview-frame" id="scenePreview">
+        <canvas ref={canvasRef} className="bay-scene-canvas" aria-label="Technology company map visualization" />
       </div>
     </main>
   );

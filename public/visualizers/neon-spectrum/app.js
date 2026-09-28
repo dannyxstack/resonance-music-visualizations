@@ -1,6 +1,8 @@
 import { loadLocalAudio, audioErrorMessage } from '../perth/local-audio.js';
 import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from '../shared/analysis.js';
 import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from '../shared/low-envelope.js';
+import { registerScene } from '../shared/scene.js';
+import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
 
 const $ = id => document.getElementById(id);
 const root = document.querySelector('.visualizer');
@@ -87,6 +89,8 @@ function getAudioContext() {
 function showBpmResult(result, message) {
   $('bpmValue').textContent = result ? result.bpm.toFixed(1) : '--';
   $('firstBeatOffset').textContent = result ? `${firstBeatOffset(result).toFixed(2)} 秒` : '-- 秒';
+  $('transportBpm').textContent = $('bpmValue').textContent;
+  $('transportOffset').textContent = $('firstBeatOffset').textContent;
   $('sceneBpm').textContent = result ? `${result.bpm.toFixed(1)} BPM` : '';
   $('sceneBpm').hidden = !result;
   $('bpmStatus').textContent = message;
@@ -206,7 +210,6 @@ async function togglePlayback() {
 function setLogoMode(mode) {
   state.logoMode = mode;
   const hasImage = mode === 'image' && Boolean(state.logoUrl);
-  $('badge').classList.toggle('has-image', hasImage);
   $('logoPreview').hidden = !hasImage;
   $('modeColor').setAttribute('aria-pressed', String(mode === 'color'));
   $('modeImage').setAttribute('aria-pressed', String(mode === 'image'));
@@ -215,16 +218,6 @@ function setLogoMode(mode) {
 }
 
 function syncDesign() {
-  const badge = $('badge');
-  badge.style.setProperty('--badge-color', $('logoColor').value);
-  badge.style.setProperty('--title-color', $('titleColor').value);
-  badge.style.setProperty('--subtitle-color', $('subtitleColor').value);
-  badge.style.setProperty('--title-size', `${$('titleSize').value}px`);
-  badge.style.setProperty('--subtitle-size', `${$('subtitleSize').value}px`);
-  badge.style.setProperty('--title-font', fonts[$('titleFont').value] || fonts.system);
-  badge.style.setProperty('--subtitle-font', fonts[$('subtitleFont').value] || fonts.system);
-  $('titlePreview').textContent = $('titleInput').value;
-  $('subtitlePreview').textContent = $('subtitleInput').value;
   for (const id of ['titleSize', 'subtitleSize']) $(`${id}Value`).textContent = `${$(id).value}px`;
   $('volumeValue').textContent = `${$('volume').value}%`;
   $('sensitivityValue').textContent = `${$('sensitivity').value}%`;
@@ -244,7 +237,7 @@ function setPanel(open, clean = false) {
 
 function resize() {
   const dpr = Math.min(devicePixelRatio || 1, 2);
-  const w = window.innerWidth, h = window.innerHeight;
+  const { width: w, height: h } = $('scenePreview').getBoundingClientRect();
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -288,7 +281,7 @@ function energy(from, to) {
   return total / Math.max(1, high - low + 1) / 255;
 }
 
-function makeSpectrum(now) {
+function makeSpectrum(now, time) {
   const active = state.audioReady && !audio.paused && state.analyser && state.context.state === 'running';
   if (active) state.analyser.getByteFrequencyData(state.spectrum);
   const idle = .028 + .015 * Math.sin(now * .0014);
@@ -296,7 +289,7 @@ function makeSpectrum(now) {
   state.mid = smooth(state.mid, active ? energy(220, 2400) : idle);
   state.treble = smooth(state.treble, active ? energy(2400, 12000) : idle);
   const sensitivity = Number($('sensitivity').value) / 75;
-  const beat = active ? beatEnergyAt(state.bpm, audio.currentTime) : 0;
+  const beat = active ? beatEnergyAt(state.bpm, time) : 0;
   const lowMode = $('barsEnergyMethod').value === 'low-envelope' && Boolean(state.lowEnvelope);
   let outline = '', bars = '';
   const count = 144;
@@ -319,31 +312,67 @@ function makeSpectrum(now) {
     bars += `M${bx.toFixed(1)} ${by.toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)} `;
   }
   const path = `${outline}Z`;
-  $('shape').setAttribute('d', path);
-  $('spectrumGlow').setAttribute('d', path);
-  $('bars').setAttribute('d', bars);
-  $('artwork').style.filter = `drop-shadow(0 0 ${Math.round(9 + (lowMode ? state.lowLevel : state.bass) * 35)}px rgba(244, 85, 197, .54))`;
+  drawArtwork(path, bars);
 }
 
-function drawFrame(now) {
-  state.frame = requestAnimationFrame(drawFrame);
-  state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, audio.currentTime, state.audioReady && !audio.paused && !audio.ended, state.time ? Math.min(0.1, (now - state.time) / 1000) : 0, state.lowLevel);
-  const w = innerWidth, h = innerHeight;
+function drawArtwork(outline, bars) {
+  const { width: w, height: h } = $('scenePreview').getBoundingClientRect();
+  const size = Math.min(w * .9, h * .95, 570);
+  ctx.save();
+  ctx.translate(w / 2 - size / 2, h / 2 - size / 2);
+  ctx.scale(size / 600, size / 600);
+  const rim = ctx.createLinearGradient(0, 0, 600, 600);
+  rim.addColorStop(0, '#ff5b9d'); rim.addColorStop(.4, '#c782ff'); rim.addColorStop(.75, '#5acaff'); rim.addColorStop(1, '#b8f47c');
+  ctx.shadowColor = '#e662ad'; ctx.shadowBlur = 24;
+  ctx.fillStyle = '#1a1224'; ctx.strokeStyle = rim; ctx.lineWidth = 5;
+  ctx.fill(new Path2D(outline)); ctx.stroke(new Path2D(outline));
+  ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.stroke(new Path2D(bars));
+  ctx.shadowBlur = 0;
+  ctx.beginPath(); ctx.arc(300, 300, 170, 0, Math.PI * 2);
+  ctx.fillStyle = $('logoColor').value; ctx.fill();
+  const logo = $('logoPreview');
+  if (state.logoMode === 'image' && logo.complete && logo.naturalWidth) {
+    ctx.save(); ctx.clip();
+    const scale = Math.max(340 / logo.naturalWidth, 340 / logo.naturalHeight);
+    ctx.drawImage(logo, 300 - logo.naturalWidth * scale / 2, 300 - logo.naturalHeight * scale / 2, logo.naturalWidth * scale, logo.naturalHeight * scale);
+    ctx.restore();
+  }
+  ctx.strokeStyle = '#ffffff44'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+  ctx.fillStyle = $('subtitleColor').value;
+  ctx.font = `900 ${Number($('subtitleSize').value)}px ${fonts[$('subtitleFont').value] || fonts.system}`;
+  ctx.fillText($('subtitleInput').value.toUpperCase(), 300, 275, 290);
+  ctx.fillStyle = $('titleColor').value;
+  ctx.font = `900 ${Number($('titleSize').value)}px ${fonts[$('titleFont').value] || fonts.system}`;
+  ctx.fillText($('titleInput').value.toUpperCase(), 300, 324, 305);
+  ctx.restore();
+}
+
+function renderScene(time, dt) {
+  state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, time, state.audioReady && !audio.paused && !audio.ended, dt, state.lowLevel);
+  const { width: w, height: h } = $('scenePreview').getBoundingClientRect();
   ctx.drawImage(state.bgCache, 0, 0, w, h);
   // Quiet falling-light texture keeps the city alive without obscuring it.
   for (const drop of state.rain) {
-    drop.y += drop.speed * Math.min(2, (now - state.time) / 16.7 || 1);
+    drop.y += drop.speed * Math.min(2, dt * 60 || 1);
     if (drop.y > h + 8) { drop.y = -12; drop.x = Math.random() * w; }
     ctx.strokeStyle = `rgba(219, 228, 250, ${drop.alpha})`;
     ctx.lineWidth = drop.width;
     ctx.beginPath(); ctx.moveTo(drop.x, drop.y); ctx.lineTo(drop.x - 1.5, drop.y + drop.length); ctx.stroke();
   }
-  state.time = now;
   const beatPulse = state.bpm && state.audioReady && !audio.paused && !audio.ended
-    ? beatEnergyAt(state.bpm, audio.currentTime) : 0;
+    ? beatEnergyAt(state.bpm, time) : 0;
   const visualPulse = $('barsEnergyMethod').value === 'low-envelope' && state.lowEnvelope ? state.lowLevel : beatPulse;
   root.style.setProperty('--beat-pulse', visualPulse.toFixed(3));
-  makeSpectrum(now);
+  makeSpectrum(time * 1000, time);
+}
+
+function drawFrame(now) {
+  state.frame = requestAnimationFrame(drawFrame);
+  const dt = state.time ? Math.min(0.1, (now - state.time) / 1000) : 0;
+  state.time = now;
+  renderScene(state.audioReady ? audio.currentTime : 0, dt);
 }
 
 for (let i = 0; i < 60; i++) state.rain.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, speed: .16 + Math.random() * .55, length: 3 + Math.random() * 15, alpha: .05 + Math.random() * .19, width: .5 + Math.random() * .9 });
@@ -386,7 +415,7 @@ $('resetBackground').addEventListener('click', () => { if (state.backgroundUrl) 
 $('panelToggle').addEventListener('click', () => setPanel(!root.classList.contains('panel-open')));
 $('closePanel').addEventListener('click', () => setPanel(false));
 $('cleanView').addEventListener('click', () => { setPanel(false, true); $('toast').hidden = true; });
-$('fullscreen').addEventListener('click', async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await root.requestFullscreen(); } catch { showToast('浏览器未允许全屏，可使用浏览器全屏快捷键。'); } });
+bindPreviewFullscreen($('scenePreview'), $('fullscreen'));
 window.addEventListener('keydown', event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target?.tagName)) return;
@@ -407,4 +436,7 @@ syncDesign();
 setLogoMode(state.logoMode === 'image' ? 'color' : state.logoMode);
 resize();
 setBackground('perth-skyline.png');
+registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });
+bindAnalysisSummary($('bpmStatus'), $('lowEnvelopeStatus'), $('transportAnalysis'));
+new ResizeObserver(resize).observe($('scenePreview'));
 state.frame = requestAnimationFrame(drawFrame);

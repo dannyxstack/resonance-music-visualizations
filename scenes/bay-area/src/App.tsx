@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { analyzeTempo } from "./audio/TempoAnalyzer";
 import { AudioControls } from "./components/AudioControls";
+import { AudioTransport } from "./components/AudioTransport";
 import { CompanyCatalog } from "./components/CompanyCatalog";
 import { DebugPanel } from "./components/DebugPanel";
 import { Visualization } from "./components/Visualization";
@@ -16,6 +17,8 @@ export default function App(): React.ReactElement {
   const [metrics, setMetrics] = useState({ fps: 60, particleCount: 0 });
   const [reducedMotion, setReducedMotion] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(true);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [tempo, setTempo] = useState<TempoAnalysis | null>(null);
   const [tempoProgress, setTempoProgress] = useState<TempoProgress | null>(null);
@@ -35,6 +38,12 @@ export default function App(): React.ReactElement {
     sync();
     mediaQuery.addEventListener("change", sync);
     return () => mediaQuery.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    const sync = (): void => setPreviewFullscreen(document.fullscreenElement?.id === 'scenePreview');
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
 
   useEffect(() => {
@@ -95,13 +104,11 @@ export default function App(): React.ReactElement {
           <p className="eyebrow">Bay Area Audio-Reactive Tech Ecosystem</p>
           <h1>Living Technology Map</h1>
         </div>
-        <div className="mode-pill">Brand animation: {animationMode}</div>
+        <div className="header-actions"><span className="mode-pill">Brand animation: {animationMode}</span><button type="button" className="control-toggle" aria-pressed={previewFullscreen} onClick={() => { const preview = document.getElementById('scenePreview'); if (document.fullscreenElement === preview) void document.exitFullscreen().catch(() => {}); else void preview?.requestFullscreen().catch(() => {}); }}>{previewFullscreen ? '退出全屏' : '画面全屏'}</button><button type="button" className="control-toggle" aria-expanded={controlsOpen} onClick={() => setControlsOpen(open => !open)}>{controlsOpen ? '收起控制区' : '展开控制区'}</button></div>
       </header>
 
       <Visualization
         featuresRef={audio.featuresRef}
-        features={audio.features}
-        animationMode={animationMode}
         masterIntensity={masterIntensity}
         reducedMotion={reducedMotion}
         audioElement={audio.engine.audio}
@@ -112,35 +119,16 @@ export default function App(): React.ReactElement {
         onNodeLayout={setNodePositions}
       />
 
-      <AudioControls
-        isPlaying={audio.isPlaying}
-        currentTime={audio.currentTime}
-        duration={audio.duration}
+      <div className="control-zone">{controlsOpen ? <><AudioControls
         fileName={audio.fileName}
-        error={audio.error}
         intensity={masterIntensity}
         catalogOpen={catalogOpen}
-        tempo={tempo}
         tempoProgress={tempoProgress}
         bpmMethod={bpmMethod}
         energyMethod={energyMethod}
-        lowProgress={lowProgress}
-        lowReady={Boolean(lowEnvelope)}
-        lowFailed={lowFailed}
-        onFile={async (file) => {
-          selectedFileRef.current = file;
-          audio.pause();
-          audio.loadFile(file);
-          void analyzeSelected(file, bpmMethod);
-          void analyzeLowSelected(file);
-          if (selectedFileRef.current === file) await audio.play();
-        }}
         onEnergyMethod={setEnergyMethod}
         onBpmMethod={method => { analysisTokenRef.current++; setTempoProgress(null); setBpmMethod(method); }}
         onReanalyze={() => { if (selectedFileRef.current) void analyzeSelected(selectedFileRef.current, bpmMethod); }}
-        onPlay={() => void audio.play()}
-        onPause={audio.pause}
-        onSeek={audio.seek}
         onIntensity={setMasterIntensity}
         onToggleCatalog={() => setCatalogOpen((open) => !open)}
       />
@@ -153,6 +141,19 @@ export default function App(): React.ReactElement {
         open={catalogOpen}
         positions={nodePositions}
       />
+      </> : <div className="controls-collapsed-note">画面预览 · 控制区已收起</div>}</div>
+      <AudioTransport isPlaying={audio.isPlaying} currentTime={audio.currentTime} duration={audio.duration}
+        fileName={audio.fileName} error={audio.error} tempo={tempo} tempoProgress={tempoProgress}
+        lowProgress={lowProgress} lowReady={Boolean(lowEnvelope)} lowFailed={lowFailed}
+        onFile={async file => {
+          selectedFileRef.current = file;
+          audio.pause();
+          audio.loadFile(file);
+          void analyzeSelected(file, bpmMethod);
+          void analyzeLowSelected(file);
+          if (selectedFileRef.current === file) await audio.play();
+        }}
+        onPlay={() => void audio.play()} onPause={audio.pause} onSeek={audio.seek} />
     </div>
   );
 }

@@ -436,3 +436,34 @@ input[type="radio"] {
     width: 100%;
   }
 }
+
+/* Video preview occupies its own layout region; the control bar follows it. */
+html,body,.app{height:100%}
+.app{display:grid;grid-template-rows:minmax(0,1fr) auto;place-items:center;gap:12px;padding:12px;overflow:auto}
+.preview-area{grid-row:1;width:100%;min-height:0;display:grid;place-items:center}
+.scene-preview-frame{width:min(100%,calc((100dvh - 175px)*16/9))}
+#scene{width:100%;height:100%}
+.controls{position:relative;grid-row:2;left:auto;right:auto;bottom:auto;width:min(100%,1180px);margin:0;max-height:min(42dvh,440px)}
+@media(max-width:700px){.app{height:auto;min-height:100dvh;grid-template-rows:auto auto;padding:0 0 12px}.scene-preview-frame{width:100%}.controls{width:calc(100% - 16px);max-height:55dvh}}
+
+.app{grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:minmax(0,1fr) auto;place-items:stretch;gap:12px}
+.preview-area{grid-column:1;grid-row:1}
+.scene-preview-frame{width:min(100%,calc((100dvh - 155px)*16/9))}
+.controls{grid-column:2;grid-row:1;width:100%;height:100%;max-height:none;display:flex;flex-direction:column;align-items:stretch;overflow:auto;margin:0;gap:12px}
+.controls .brand{align-self:stretch}
+.controls .advanced-controls{width:100%;grid-template-columns:minmax(0,1fr);align-items:stretch}
+.controls .advanced-controls>*{grid-column:1/-1}
+.controls .beat-panel{min-width:0}
+.controls .beat-row--labels{display:none}
+.controls .beat-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.controls .beat-row>*{min-width:0;width:100%}
+.controls .beat-row strong{grid-column:1/-1;text-align:left}
+.controls .control{pointer-events:auto;scale:1}
+.controls .meters{width:100%}
+.controls #fullscreenPreview,.controls #advancedToggle,.controls .file-picker{align-self:flex-start}
+.transport-panel{grid-column:1/-1;grid-row:2}
+.transport-panel .transport-file{position:relative;width:auto;padding:0 14px}
+.transport-panel .transport-play{flex:none}
+.transport-panel .seek-area{min-width:0}
+.transport-panel .time-row{display:flex;justify-content:space-between;color:#aabdd1;font:10px monospace}
+@media(max-width:700px){.app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto}.preview-area{grid-column:1;grid-row:1}.controls{grid-column:1;grid-row:2;width:calc(100% - 16px);height:min(55dvh,500px);max-height:none;margin:auto}.transport-panel{grid-column:1;grid-row:3}.scene-preview-frame{width:100%}}

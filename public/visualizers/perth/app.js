@@ -1,9 +1,14 @@
 import { loadLocalAudio, audioErrorMessage } from "./local-audio.js";
 import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from "../shared/analysis.js";
 import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from "../shared/low-envelope.js";
+import { registerScene } from "../shared/scene.js";
+import { bindAnalysisSummary, bindPreviewFullscreen } from "../shared/workspace.js";
 
 const canvas = document.querySelector("#scene");
 const ctx = canvas.getContext("2d");
+const scenePreview = document.querySelector('#scenePreview');
+let sceneWidth = 1;
+let sceneHeight = 1;
 const fileInput = document.querySelector("#audioFile");
 const cityImageInput = document.querySelector("#cityImage");
 const playButton = document.querySelector("#playPause");
@@ -57,6 +62,8 @@ function saveMethodSettings() {
 function showCommonBpm(result, message) {
   document.querySelector('#commonBpmValue').textContent = result ? result.bpm.toFixed(1) : '--';
   document.querySelector('#commonBeatOffset').textContent = result ? `${firstBeatOffset(result).toFixed(2)} 秒` : '-- 秒';
+  document.querySelector('#transportBpm').textContent = document.querySelector('#commonBpmValue').textContent;
+  document.querySelector('#transportOffset').textContent = document.querySelector('#commonBeatOffset').textContent;
   document.querySelector('#commonBpmStatus').textContent = message;
 }
 
@@ -270,8 +277,11 @@ function setupAudio() {
 
 function resize() {
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-  canvas.width = Math.floor(window.innerWidth * dpr);
-  canvas.height = Math.floor(window.innerHeight * dpr);
+  const bounds = scenePreview.getBoundingClientRect();
+  sceneWidth = Math.max(1, bounds.width);
+  sceneHeight = Math.max(1, bounds.height);
+  canvas.width = Math.floor(sceneWidth * dpr);
+  canvas.height = Math.floor(sceneHeight * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   buildSkyline();
   buildStars();
@@ -336,8 +346,8 @@ function buildSkyline() {
     return;
   }
 
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const w = sceneWidth;
+  const h = sceneHeight;
   buildings = [];
   let x = -20;
   let index = 0;
@@ -367,7 +377,7 @@ function buildSkyline() {
 }
 
 function getStarSkyBounds() {
-  const h = window.innerHeight;
+  const h = sceneHeight;
 
   if (skylineImage.complete && skylineImage.naturalWidth) {
     const placement = getSkylinePlacement();
@@ -384,7 +394,7 @@ function getStarSkyBounds() {
   };
 }
 
-function createStar(x = randomRange(-window.innerWidth * 0.08, window.innerWidth * 1.08)) {
+function createStar(x = randomRange(-sceneWidth * 0.08, sceneWidth * 1.08)) {
   const bounds = getStarSkyBounds();
   const depth = randomRange(0.35, 1);
   const colors = [
@@ -806,21 +816,21 @@ function updateBeatTrack(track, nextBeatInfo) {
   setTrackStatus(track, track.bpm ? `${track.bpm.toFixed(1)} BPM` : "Not detected");
 }
 
-function getBeatPulseForTrack(track) {
+function getBeatPulseForTrack(track, time = audio.currentTime) {
   const bpm = getTrackBpm(track);
   if (!bpm || !audio.duration) return 0;
 
   const interval = 60 / bpm;
-  const elapsed = audio.currentTime - getTrackOffset(track);
+  const elapsed = time - getTrackOffset(track);
   if (elapsed < 0) return 0;
 
   const phase = (elapsed % interval) / interval;
   return Math.exp(-phase * 16);
 }
 
-function updateBeatPulses() {
+function updateBeatPulses(time = audio.currentTime) {
   for (const track of Object.values(beatTracks)) {
-    track.pulse = getBeatPulseForTrack(track);
+    track.pulse = getBeatPulseForTrack(track, time);
   }
 }
 
@@ -859,6 +869,7 @@ function setAnalysisMode(mode) {
 function setPlayButtonState(playing) {
   const label = playing ? "Pause" : "Play";
   playButton.classList.toggle("is-playing", playing);
+  playButton.textContent = label;
   playButton.setAttribute("aria-label", label);
   playButton.title = label;
 }
@@ -870,7 +881,7 @@ function setAdvancedCollapsed(collapsed) {
   advancedToggle.title = collapsed ? "Expand settings" : "Collapse settings";
 }
 
-function analyzeAudio() {
+function analyzeAudio(time = audio.currentTime) {
   if (!analyser) return { bass: 0, mid: 0, treble: 0, onset: { bass: 0, mid: 0, treble: 0, global: 0 } };
 
   analyser.getByteFrequencyData(frequencyData);
@@ -884,7 +895,7 @@ function analyzeAudio() {
   const raw = isVizzyMode() ? analyzeVizzyBands() : classic;
   const smoothing = isVizzyMode() ? 0.46 : 0.78;
   const incoming = 1 - smoothing;
-  const beat = isPlaying ? beatEnergyAt(commonBpm, audio.currentTime) : 0;
+  const beat = isPlaying ? beatEnergyAt(commonBpm, time) : 0;
 
   for (const band of ["bass", "mid", "treble"]) {
     smoothed[band] = smoothed[band] * smoothing + raw[band] * incoming;
@@ -902,8 +913,8 @@ function analyzeAudio() {
 }
 
 function drawBackground(energy) {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const w = sceneWidth;
+  const h = sceneHeight;
   const base = getBaseBrightness();
   const bright = Math.min(0.95, base * 0.25 + flash * 0.78);
   const sky = ctx.createLinearGradient(0, 0, 0, h);
@@ -924,7 +935,7 @@ function drawBackground(energy) {
 function drawStars(dt) {
   if (!isStarsEnabled()) return;
 
-  const w = window.innerWidth;
+  const w = sceneWidth;
   const bounds = getStarSkyBounds();
   const speed = getStarSpeed();
   const now = performance.now() * 0.001;
@@ -992,8 +1003,8 @@ function drawSkyTitle(dt) {
   if (!isSkyTitleEnabled()) return;
 
   const text = getSkyTitleText();
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const w = sceneWidth;
+  const h = sceneHeight;
   const beatEnergy = getSkyTitleBeatEnergy();
   const speedScale = 1 + beatEnergy * 7;
   const lightness = clamp(56 + beatEnergy * 10 + flash * 8, 48, 76);
@@ -1063,8 +1074,8 @@ function drawImageSkyline(energy) {
 }
 
 function getSkylinePlacement() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const w = sceneWidth;
+  const h = sceneHeight;
   const imageRatio = skylineImage.naturalWidth / skylineImage.naturalHeight;
   const targetHeight = Math.max(h * 0.62, w / imageRatio);
   const dw = Math.max(w, targetHeight * imageRatio);
@@ -1136,7 +1147,7 @@ function drawBuildingTooltip() {
   let x = pointer.x + 14;
   let y = pointer.y - boxH - 12;
 
-  if (x + boxW > window.innerWidth - 8) x = pointer.x - boxW - 14;
+  if (x + boxW > sceneWidth - 8) x = pointer.x - boxW - 14;
   if (y < 8) y = pointer.y + 16;
 
   ctx.strokeStyle = "rgb(255 255 255 / 0.72)";
@@ -1212,7 +1223,7 @@ function drawImageBuildingWindows(building, placement, towerEnergy, energy) {
 }
 
 function drawGeneratedSkyline(energy) {
-  const h = window.innerHeight;
+  const h = sceneHeight;
 
   for (const building of buildings) {
     const towerEnergy = getTowerEnergy(building.bandIndex, buildings.length);
@@ -1243,7 +1254,7 @@ function drawGeneratedSkyline(energy) {
   ground.addColorStop(0, "rgb(3 8 12 / 0)");
   ground.addColorStop(1, "rgb(1 4 7 / 0.95)");
   ctx.fillStyle = ground;
-  ctx.fillRect(0, h - 140, window.innerWidth, 150);
+  ctx.fillRect(0, h - 140, sceneWidth, 150);
 }
 
 function getTowerEnergy(index, total = buildings.length) {
@@ -1346,8 +1357,8 @@ function maybeCreateLightning(energy) {
 }
 
 function makeBolt(power) {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const w = sceneWidth;
+  const h = sceneHeight;
   const startX = randomRange(w * 0.08, w * 0.92);
   const endY = randomRange(h * 0.34, h * 0.76);
   const segments = Math.floor(randomRange(7, 13));
@@ -1423,12 +1434,12 @@ function drawFlashOverlay() {
 
   const boost = Number(boostInput.value);
   ctx.fillStyle = `rgb(205 230 248 / ${Math.min(0.48, flash * 0.2 * boost)})`;
-  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+  ctx.fillRect(0, 0, sceneWidth, sceneHeight);
 }
 
 function drawIdleWave() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const w = sceneWidth;
+  const h = sceneHeight;
   const t = performance.now() * 0.001;
 
   ctx.save();
@@ -1445,14 +1456,11 @@ function drawIdleWave() {
   ctx.restore();
 }
 
-function frame(now) {
-  const dt = Math.min(0.05, (now - lastTime) / 1000);
-  lastTime = now;
+function renderScene(time, dt) {
+  lowLevel = updateLowFrequencyLevel(lowEnvelope, time, isPlaying && !audio.ended, dt, lowLevel);
 
-  lowLevel = updateLowFrequencyLevel(lowEnvelope, audio.currentTime, isPlaying && !audio.ended, dt, lowLevel);
-
-  const energy = analyzeAudio();
-  updateBeatPulses();
+  const energy = analyzeAudio(time);
+  updateBeatPulses(time);
   updateHoveredBuilding();
   maybeCreateLightning(energy);
   flash = isLightningEnabled() ? Math.max(0, flash - dt * 2.7) : 0;
@@ -1466,6 +1474,12 @@ function frame(now) {
   if (!isPlaying) drawIdleWave();
   drawBuildingTooltip();
 
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  renderScene(audio.currentTime || 0, dt);
   requestAnimationFrame(frame);
 }
 
@@ -1535,6 +1549,7 @@ fileInput.addEventListener("change", async () => {
   if (audioUrl) URL.revokeObjectURL(audioUrl);
   audioUrl = null;
   selectedAudioFile = file;
+  document.querySelector('#trackName').textContent = file.name;
   playButton.disabled = true;
   detectBeatButton.disabled = true;
   setPlayButtonState(false);
@@ -1559,8 +1574,8 @@ fileInput.addEventListener("change", async () => {
     detectBeatButton.disabled = false;
     void runCommonBpmAnalysis(file, selection);
     void runLowEnvelopeAnalysis(file, selection);
-    setAudioStatus(`已就绪：${file.name} · 点击播放`);
-    requestAnimationFrame(() => { if (!selection.signal.aborted) playButton.focus(); });
+    setAudioStatus(`已就绪：${file.name} · 正在自动播放`);
+    void togglePlayback();
   } catch (error) {
     if (selection.signal.aborted) return;
     setAudioStatus(`${file.name}：${audioErrorMessage(error)}`, true);
@@ -1732,6 +1747,22 @@ window.addEventListener("resize", resize);
 updateLightningFrequencyLabel();
 updateStarControlLabels();
 setAnalysisMode("classic");
-setAdvancedCollapsed(true);
+setAdvancedCollapsed(false);
 resize();
+registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });
+bindAnalysisSummary(document.querySelector('#commonBpmStatus'), lowEnvelopeStatus, document.querySelector('#transportAnalysis'));
+bindPreviewFullscreen(scenePreview, document.querySelector('#fullscreenPreview'));
+const seekInput = document.querySelector('#seek');
+function syncTransport() {
+  const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+  const format = value => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
+  document.querySelector('#currentTime').textContent = format(audio.currentTime || 0);
+  document.querySelector('#duration').textContent = format(duration);
+  seekInput.disabled = !audioReady || duration <= 0;
+  seekInput.value = duration > 0 ? String(Math.round(audio.currentTime / duration * 1000)) : '0';
+}
+seekInput.addEventListener('input', () => { if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Number(seekInput.value) / 1000 * audio.duration; });
+for (const event of ['loadedmetadata', 'timeupdate', 'durationchange', 'emptied']) audio.addEventListener(event, syncTransport);
+syncTransport();
+new ResizeObserver(resize).observe(scenePreview);
 requestAnimationFrame(frame);

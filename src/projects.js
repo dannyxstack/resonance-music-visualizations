@@ -1,6 +1,15 @@
 // Add new independent visualizers here; entry and cover are relative to public/.
 export const projects = [
   {
+    id: 'earth-spin', title: '地球自转 · 赤道频谱', english: 'EARTH SPIN',
+    category: '宇宙旅程', location: 'PLANET EARTH', year: '2026',
+    description: '点阵陆地缓缓旋转，24 根镜像频谱沿赤道环绕地球，跟随音乐向南北两极对称跃动。',
+    tags: ['点阵地球', '3D 旋转', '赤道频谱', 'BPM 预分析'],
+    entry: 'visualizers/earth-spin/index.html', cover: 'art/earth-spin.svg',
+    accent: '#8ce9f4', featured: false,
+    instructions: '选择本地音乐后自动分析 BPM 并播放。右侧可调整地球、星空与频谱，按 H 折叠参数面板。',
+  },
+  {
     id: 'space-odyssey', title: '星际漫游 · 声波公路', english: 'SPACE ODYSSEY',
     category: '宇宙旅程', location: 'BEYOND THE HORIZON', year: '2026',
     description: '驶入绚丽星云。左右两侧的连续频谱沿透视公路延伸，跟随音乐与基础节拍跃动。',
@@ -16,7 +25,7 @@ export const projects = [
     tags: ['霓虹频谱', '自定义封面', '录屏模式'],
     entry: 'visualizers/neon-spectrum/index.html', cover: 'art/neon-spectrum.svg',
     accent: '#f487de', featured: false,
-    instructions: '选择本地音乐并播放；在画面工作台上传中心 Logo、修改文字和城市背景。按 H 展开或隐藏全部设置，按空格播放或暂停。',
+    instructions: '选择本地音乐后自动分析 BPM 并播放；在画面工作台上传中心 Logo、修改文字和城市背景。按 H 展开或隐藏全部设置，按空格播放或暂停。',
   },
   {
     id: 'perth', title: '珀斯 · 雷鸣之夜', english: 'SKYLINE UNDER THUNDER',
@@ -25,7 +34,7 @@ export const projects = [
     tags: ['城市天际线', '闪电', '频谱响应'],
     entry: 'visualizers/perth/index.html', cover: 'visualizers/perth/city-skyline.gpt.16x10v2.png',
     accent: '#c7adff', featured: true,
-    instructions: '点击音符图标选择本地音乐，再点击播放。展开设置可调整闪电、星空和节奏响应。',
+    instructions: '选择本地音乐后自动分析 BPM 并播放。展开右侧设置可调整闪电、星空和节奏响应。',
   },
   {
     id: 'bay-area', title: '湾区 · 科技脉搏', english: 'LIVING TECHNOLOGY MAP',
@@ -34,7 +43,7 @@ export const projects = [
     tags: ['数字生态', '粒子网络', '节拍驱动'],
     entry: 'visualizers/bay-area/index.html', cover: 'art/bay-area.svg',
     accent: '#a9eace', featured: false,
-    instructions: '在效果页面选择本地音频并播放。可以调整响应强度、查看企业节点，并使用 D 键打开调试信息。',
+    instructions: '选择本地音乐后自动分析 BPM 并播放。可以调整响应强度、查看企业节点，并使用 D 键打开调试信息。',
   },
 ];
 

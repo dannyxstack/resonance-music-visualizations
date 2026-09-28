@@ -4,11 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Music Wave Vision Under Thunder</title>
+    <link rel="stylesheet" href="../shared/scene-preview.css" />
+    <link rel="stylesheet" href="../shared/workspace-layout.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="app">
-      <canvas id="scene" aria-label="Music-driven skyline visualization"></canvas>
+      <div class="preview-area"><div class="scene-preview-frame" id="scenePreview"><canvas id="scene" aria-label="Music-driven skyline video preview"></canvas></div></div>
       <audio id="audioPlayback" preload="auto" hidden></audio>
 
       <section class="controls" aria-label="Music visualization controls">
@@ -16,16 +18,6 @@
           <span class="kicker">Audio Skyline</span>
           <h1>Music Wave Visualization With Skyline</h1>
         </div>
-
-        <label class="file-picker icon-control" aria-label="Choose audio" title="Choose audio">
-          <input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" />
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 18V5l11-2v13" />
-            <circle cx="6" cy="18" r="3" />
-            <circle cx="17" cy="16" r="3" />
-          </svg>
-          <span class="sr-only">Choose Audio</span>
-        </label>
 
         <label class="file-picker icon-control" aria-label="Choose city image" title="Choose city image">
           <input id="cityImage" type="file" accept="image/*" />
@@ -37,17 +29,7 @@
           <span class="sr-only">Choose City Image</span>
         </label>
 
-        <button id="playPause" class="icon-control" type="button" disabled aria-label="Play" title="Play">
-          <svg class="icon play-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          <svg class="icon pause-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 5h4v14H7z" />
-            <path d="M13 5h4v14h-4z" />
-          </svg>
-          <span class="sr-only">Play</span>
-        </button>
-
+        <button id="fullscreenPreview" class="preview-fullscreen-button" type="button" aria-label="Fullscreen visual preview">⛶</button>
         <button
           id="advancedToggle"
           class="icon-control"
@@ -216,6 +198,10 @@
           <span style="--level: 0" id="trebleMeter">Treble</span>
         </div>
       </section>
+      <footer class="transport-panel" aria-label="Music playback controls">
+        <div class="transport-primary"><label class="file-picker transport-file" for="audioFile">Open Audio</label><input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden /><button id="playPause" class="transport-play" type="button" disabled aria-label="Play">Play</button><div class="seek-area"><input id="seek" type="range" min="0" max="1000" value="0" disabled aria-label="Playback progress" /><div class="time-row"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div>
+        <div class="transport-secondary"><span id="trackName">No audio selected</span><span id="transportAnalysis" role="status" aria-live="polite">Waiting for audio</span><span>BPM <strong id="transportBpm">--</strong></span><span>First beat <strong id="transportOffset">-- s</strong></span></div>
+      </footer>
     </main>
 
     <script type="module" src="app.js"></script>

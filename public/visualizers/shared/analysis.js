@@ -9,9 +9,11 @@ export const BPM_METHODS = Object.freeze([
 
 export const ENERGY_METHODS = Object.freeze([
   { value: 'live', label: '实时频谱' },
-  { value: 'beat', label: '预分析节拍能量' },
+  { value: 'beat', label: '节拍能量' },
   { value: 'mix', label: '实时 50% + 节拍 50%' },
-  { value: 'low-envelope', label: 'Vizzy 式低频包络（连续）' },
+  { value: 'live-low', label: '实时 50% + vizzy低频 50%' },
+  { value: 'beat-low', label: '节拍 50% + vizzy低频 50%' },
+  { value: 'low-envelope', label: 'vizzy低频' },
 ]);
 
 export function fillMethodSelect(select, methods, preferred) {
@@ -42,11 +44,13 @@ export function beatEnergyAt(result, time) {
 
 export function energyByMethod(method, live, beat, hasAnalysis, lowEnvelope = 0, hasLowEnvelope = false) {
   const normalizedLive = Math.max(0, Math.min(1, live));
-  if (method === 'low-envelope') return hasLowEnvelope ? Math.max(0, Math.min(1, lowEnvelope)) : normalizedLive;
-  if (!hasAnalysis) return normalizedLive;
-  const normalizedBeat = Math.max(0, Math.min(1, beat));
+  const normalizedBeat = hasAnalysis ? Math.max(0, Math.min(1, beat)) : normalizedLive;
+  const normalizedLow = hasLowEnvelope ? Math.max(0, Math.min(1, lowEnvelope)) : normalizedLive;
+  if (method === 'low-envelope') return normalizedLow;
   if (method === 'beat') return normalizedBeat;
   if (method === 'mix') return (normalizedLive + normalizedBeat) / 2;
+  if (method === 'live-low') return (normalizedLive + normalizedLow) / 2;
+  if (method === 'beat-low') return (normalizedBeat + normalizedLow) / 2;
   return normalizedLive;
 }
 

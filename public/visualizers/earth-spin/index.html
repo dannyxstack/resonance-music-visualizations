@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#050b19" />
+  <title>EARTH SPIN · RESONANCE</title>
+  <link rel="stylesheet" href="../shared/scene-preview.css" />
+  <link rel="stylesheet" href="../shared/workspace-layout.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="earth-app" id="earthApp">
+    <header class="app-header"><div class="brand"><span class="brand-mark">◉</span><div><span class="eyebrow">RESONANCE / VISUAL LAB 005</span><h1>EARTH <em>SPIN</em></h1></div></div><button id="panelToggle" type="button" aria-controls="controlPanel" aria-expanded="true">收起参数 <span aria-hidden="true">⌃</span></button></header>
+    <div class="preview-area"><div class="scene-preview-frame" id="scenePreview"><canvas id="scene" aria-label="点阵地球与赤道频谱视频预览"></canvas></div></div>
+    <aside class="control-panel" id="controlPanel" aria-label="地球与频谱参数">
+      <div class="panel-heading"><div><span class="eyebrow">ORBITAL CONTROLS</span><h2>地球参数</h2></div><div class="panel-actions"><button id="fullscreenPreview" class="preview-fullscreen-button" type="button" aria-label="视觉效果全屏">⛶</button><button id="closePanel" type="button" aria-label="收起参数">×</button></div></div>
+      <div class="panel-scroll">
+        <section class="control-group"><h3>01 / 地球与星空</h3>
+          <label class="setting" for="globeScale">地球大小 <output id="globeScaleValue">100%</output></label><input id="globeScale" type="range" min="70" max="115" value="100" />
+          <label class="setting" for="spinSpeed">旋转速度 <output id="spinSpeedValue">1.0×</output></label><input id="spinSpeed" type="range" min="20" max="250" value="100" />
+          <label class="setting" for="starCount">星星数量 <output id="starCountValue">120</output></label><input id="starCount" type="range" min="0" max="260" value="120" />
+          <label class="setting" for="dotSize">陆地点大小 <output id="dotSizeValue">100%</output></label><input id="dotSize" type="range" min="50" max="170" value="100" />
+        </section>
+        <section class="control-group"><h3>02 / 赤道频谱</h3>
+          <p class="hint">24 根柱：低→高→低镜像排列；上下对称，最高抵达南北纬 30°。</p>
+          <label class="setting" for="energyMethod">柱状带能量方法</label><select id="energyMethod"></select>
+          <label class="setting" for="sensitivity">频谱响应 <output id="sensitivityValue">100%</output></label><input id="sensitivity" type="range" min="40" max="200" value="100" />
+          <p id="lowEnvelopeStatus" class="hint" role="status" aria-live="polite">选择音乐后分析低频包络</p>
+        </section>
+        <section class="control-group"><h3>03 / 城市灯光</h3>
+          <p class="hint"><span id="cityCount">39</span> 座城市随地球旋转；log(GDP) 与所选能量各占 50%，共同控制实心点跳动与亮度。</p>
+          <label class="setting" for="cityEnergyMethod">灯光能量方法</label><select id="cityEnergyMethod"></select>
+          <label class="setting" for="cityLightColor">灯光颜色</label><select id="cityLightColor"></select>
+          <label class="setting" for="cityBaseSize">基础圆圈大小 <output id="cityBaseSizeValue">1 px</output></label><input id="cityBaseSize" type="range" min="1" max="10" step="1" value="1" />
+          <label class="setting" for="cityPulseSize">圆圈跳动大小 <output id="cityPulseSizeValue">1 px</output></label><input id="cityPulseSize" type="range" min="1" max="10" step="1" value="1" />
+          <p class="hint">最大大小 = 基础圆圈大小 + 圆圈跳动大小</p>
+          <details class="city-data"><summary>查看 <span id="cityDataCount">39</span> 城 GDP 数据</summary>
+            <p class="hint">单位：十亿美元，名义 GDP。年份与统计边界因城市而异；* 为巴拿马城代理值。开普敦采用当地官方发布值。</p>
+            <ol id="cityGdpList"></ol>
+            <a href="data-source.md" target="_blank" rel="noopener noreferrer">数据来源与口径说明 ↗</a>
+          </details>
+        </section>
+        <section class="control-group"><h3>04 / 基础节奏</h3>
+          <div class="bpm-readout"><strong id="bpmValue">--</strong><span>BPM</span></div>
+          <p class="hint">首拍时间偏移：<strong id="firstBeatOffset">-- 秒</strong></p>
+          <label class="setting" for="bpmMethod">预分析方法</label><select id="bpmMethod"></select>
+          <button id="reanalyzeBpm" class="secondary-button" type="button" disabled>重新分析 BPM</button>
+          <p id="bpmStatus" class="hint" role="status" aria-live="polite">等待选曲</p>
+        </section>
+        <section class="control-group"><h3>05 / 音频</h3>
+          <label class="setting" for="volume">音量 <output id="volumeValue">80%</output></label><input id="volume" type="range" min="0" max="100" value="80" />
+          <p class="hint" id="audioStatus" role="status" aria-live="polite">选曲后自动分析并播放</p>
+        </section>
+      </div>
+    </aside>
+    <footer class="transport-panel" aria-label="音乐播放控制">
+      <div class="transport-primary"><label class="open-button" for="audioFile">♫ <span>打开音乐</span></label><input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden /><button id="playButton" class="play-button" type="button" aria-label="播放" disabled>▶</button><div class="seek-area"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled /><div class="time-row"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div>
+      <div class="transport-secondary"><span id="trackName" title="">尚未选择本地音乐</span><span id="transportAnalysis" role="status" aria-live="polite">等待选曲</span><span>BPM <strong id="transportBpm">--</strong></span><span>首拍偏移 <strong id="transportOffset">-- 秒</strong></span></div>
+    </footer>
+    <audio id="player" preload="metadata"></audio>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

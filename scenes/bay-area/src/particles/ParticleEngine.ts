@@ -24,8 +24,9 @@ export class ParticleEngine {
     deltaMs: number,
     now: number,
     reducedMotion: boolean,
+    clear = true,
   ): void {
-    context.clearRect(0, 0, width, height);
+    if (clear) context.clearRect(0, 0, width, height);
     const dt = Math.min(0.05, deltaMs / 1000);
     const maxParticles = reducedMotion
       ? Math.floor(VISUAL_CONFIG.maxParticles * VISUAL_CONFIG.reducedMotionParticleScale)

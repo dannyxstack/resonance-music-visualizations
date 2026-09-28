@@ -12,3 +12,27 @@
 #spectrum{scale:calc(1 + var(--beat-pulse,0) * .025)}
 .badge{scale:calc(1 + var(--beat-pulse,0) * .035)}
 @media(prefers-reduced-motion:reduce){#spectrum,.badge{scale:1}}
+
+/* Only the canvas belongs to the video preview. */
+.visualizer{display:grid;grid-template-columns:minmax(0,1fr) 364px;grid-template-rows:64px minmax(0,1fr);gap:0 14px;padding:0 14px 14px}
+.visualizer:after{display:none}
+.preview-area{grid-column:1;grid-row:2;display:grid;place-items:center;min-width:0;min-height:0}
+.scene-preview-frame{width:min(100%,calc((100dvh - 92px)*16/9))}
+#scene{position:static;z-index:auto;width:100%;height:100%}
+.artwork,.scene-top,.scene-bottom{display:none}
+.panel-toggle{position:relative;grid-column:2;grid-row:1;top:auto;right:auto;justify-self:end;align-self:center}
+.control-panel{position:relative;grid-column:2;grid-row:2;top:auto;right:auto;bottom:auto;width:100%;height:100%;min-height:0;max-height:none;transition:none}
+.visualizer:not(.panel-open){grid-template-columns:minmax(0,1fr) 0}
+.visualizer:not(.panel-open) .control-panel{display:none}
+.visualizer.clean-view .panel-toggle{display:none}
+@media(max-width:700px){html,body{overflow:auto}.visualizer{height:auto;min-height:100dvh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;padding:0 0 12px;gap:10px}.visualizer:not(.panel-open){grid-template-columns:minmax(0,1fr)}.panel-toggle{grid-column:1;grid-row:1;margin:8px 12px}.preview-area{grid-column:1;grid-row:2}.scene-preview-frame{width:100%}.control-panel{grid-column:1;grid-row:3;position:relative;top:auto;right:auto;bottom:auto;left:auto;width:calc(100% - 16px);height:min(56dvh,500px);max-height:none;margin:auto}.visualizer:not(.panel-open) .control-panel{display:none}}
+
+.visualizer{grid-template-rows:64px minmax(0,1fr) auto}
+.scene-preview-frame{width:min(100%,calc((100dvh - 190px)*16/9))}
+.transport-panel .transport button{width:42px;height:42px;border:0;border-radius:50%;background:#eee0ff;color:#1b1323;font-size:15px}
+.transport-panel .transport button:disabled{opacity:.45}
+.transport-panel .times{display:flex;justify-content:space-between;color:#9499aa;font:10px monospace}
+.transport-panel .upload-button{padding:5px 10px}
+.transport-panel .track-name{min-height:0}
+.visualizer.clean-view .transport-panel{display:none}
+@media(max-width:700px){.visualizer{grid-template-rows:auto auto auto auto}.transport-panel{grid-row:4}.scene-preview-frame{width:100%}}

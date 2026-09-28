@@ -66,7 +66,17 @@ function renderExperience(id) {
   });
   document.querySelector('#scene-switch').onchange = e => { location.hash = `/experience/${e.target.value}`; };
   document.querySelector('#help').onclick = e => { const panel = document.querySelector('#help-panel'); panel.hidden = !panel.hidden; e.currentTarget.setAttribute('aria-expanded', String(!panel.hidden)); };
-  document.querySelector('#fullscreen').onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.querySelector('.scene-frame').requestFullscreen(); } catch { document.querySelector('#scene-status').textContent = '浏览器暂不支持全屏，可使用浏览器全屏模式'; } };
+  document.querySelector('#fullscreen').onclick = async () => {
+    try {
+      const sceneDocument = document.querySelector('.scene-frame iframe').contentDocument;
+      const preview = sceneDocument?.getElementById('scenePreview');
+      if (!preview) throw new Error('预览区尚未就绪');
+      if (sceneDocument.fullscreenElement) await sceneDocument.exitFullscreen();
+      else await preview.requestFullscreen();
+    } catch {
+      document.querySelector('#scene-status').textContent = '浏览器暂不支持画面全屏，可使用浏览器全屏模式';
+    }
+  };
   cleanup = () => { clearTimeout(timer); frame.src = 'about:blank'; };
 }
 

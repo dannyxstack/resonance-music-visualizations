@@ -6,35 +6,15 @@
   <meta name="theme-color" content="#090c15" />
   <title>霓虹声浪环 · RESONANCE</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="../shared/scene-preview.css" />
+  <link rel="stylesheet" href="../shared/workspace-layout.css" />
 </head>
 <body>
   <main class="visualizer" aria-label="音乐频谱可视化">
-    <canvas id="scene" aria-hidden="true"></canvas>
+    <div class="preview-area"><div class="scene-preview-frame" id="scenePreview"><canvas id="scene" aria-label="霓虹声浪环视频预览"></canvas></div></div>
     <audio id="player" preload="metadata"></audio>
 
-    <div class="scene-top" aria-hidden="true"><span class="signal-mark"><i></i><i></i><i></i><i></i><i></i></span> RESONANCE <small>VISUAL LAB / 003</small></div>
-
-    <div class="artwork" id="artwork">
-      <div class="halo"></div>
-      <svg id="spectrum" viewBox="0 0 600 600" aria-hidden="true">
-        <defs>
-          <linearGradient id="rim" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#ff5b9d"/><stop offset=".37" stop-color="#c782ff"/><stop offset=".7" stop-color="#5acaff"/><stop offset="1" stop-color="#b8f47c"/></linearGradient>
-          <pattern id="stripes" patternUnits="userSpaceOnUse" width="9" height="9" patternTransform="rotate(45)"><rect width="9" height="9" fill="#171322"/><rect width="4" height="9" fill="#fb338f" opacity=".7"/></pattern>
-          <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        </defs>
-        <path id="spectrumGlow" fill="none" stroke="url(#rim)" stroke-width="15" opacity=".52" filter="url(#glow)"/>
-        <path id="shape" fill="url(#stripes)" stroke="url(#rim)" stroke-width="4"/>
-        <path id="bars" fill="none" stroke="url(#rim)" stroke-width="3.5" stroke-linecap="round" opacity=".95"/>
-        <circle cx="300" cy="300" r="171" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="1"/>
-      </svg>
-      <div class="badge" id="badge">
-        <img id="logoPreview" alt="自定义中心 Logo" hidden />
-        <div class="badge-shade"></div>
-        <div class="badge-copy"><span class="badge-eyebrow">NOW PLAYING</span><p id="subtitlePreview"></p><h1 id="titlePreview"></h1><span class="badge-foot">SOUND IN MOTION</span></div>
-      </div>
-    </div>
-
-    <div class="scene-bottom" aria-hidden="true"><span class="scene-bottom-line"></span><span>LET THE MUSIC TAKE SHAPE</span><span class="scene-bpm" id="sceneBpm" hidden></span><span id="sceneTime">00:00 / 00:00</span></div>
+    <div hidden aria-hidden="true"><img id="logoPreview" alt="" /><span id="sceneBpm"></span><span id="sceneTime"></span></div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <button class="panel-toggle" id="panelToggle" type="button" aria-controls="controlPanel" aria-expanded="true"><span class="toggle-icon" aria-hidden="true">✦</span><span id="toggleLabel">收起设置</span><kbd>H</kbd></button>
@@ -42,11 +22,7 @@
     <aside class="control-panel" id="controlPanel" aria-label="可视化设置">
       <div class="panel-heading"><div><span class="overline">CUSTOMIZE THE EXPERIENCE</span><h2>画面工作台</h2><p>让你的音乐，拥有自己的封面。</p></div><button class="close-panel" id="closePanel" type="button" aria-label="收起设置">×</button></div>
 
-      <details class="control-group" open><summary><span><b>01</b> 音乐与播放</span><span class="chevron">⌄</span></summary><div class="group-content">
-        <label class="upload-button" for="audioFile"><span class="upload-icon">♫</span><span>选择本地音乐</span><span>↗</span></label>
-        <input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden />
-        <div class="track-name" id="trackName">尚未选择音频文件</div>
-        <div class="transport"><button id="playButton" type="button" disabled aria-label="播放">▶</button><div class="seek-wrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled /><div class="times"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div>
+      <details class="control-group" open><summary><span><b>01</b> 音频参数</span><span class="chevron">⌄</span></summary><div class="group-content">
         <label class="row-label" for="volume">音量 <output id="volumeValue">80%</output></label><input id="volume" type="range" min="0" max="100" value="80" />
         <label class="row-label" for="sensitivity">频谱响应 <output id="sensitivityValue">75%</output></label><input id="sensitivity" type="range" min="20" max="150" value="75" />
         <div class="bpm-panel" aria-label="基础节奏分析">
@@ -88,6 +64,10 @@
 
       <div class="panel-footer"><button id="fullscreen" type="button">⛶ <span>全屏画面</span></button><button id="cleanView" type="button">◌ <span>录屏纯净模式</span></button><p>按 H 隐藏 / 打开工作台，按空格播放 / 暂停。</p></div>
     </aside>
+    <footer class="transport-panel" aria-label="音乐播放控制">
+      <div class="transport-primary"><label class="upload-button" for="audioFile"><span class="upload-icon">♫</span><span>选择本地音乐</span></label><input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden /><div class="transport"><button id="playButton" type="button" disabled aria-label="播放">▶</button><div class="seek-wrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled /><div class="times"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div></div>
+      <div class="transport-secondary"><span class="track-name" id="trackName">尚未选择音频文件</span><span id="transportAnalysis" role="status" aria-live="polite">等待选曲</span><span>BPM <strong id="transportBpm">--</strong></span><span>首拍偏移 <strong id="transportOffset">-- 秒</strong></span></div>
+    </footer>
   </main>
   <script type="module" src="app.js"></script>
 </body>
