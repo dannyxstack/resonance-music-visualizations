@@ -10,6 +10,8 @@ import { BayAreaMap } from "../visual/BayAreaMap";
 import { CompanyNode } from "../visual/CompanyNode";
 import { NetworkLayer } from "../visual/NetworkLayer";
 import { setCanvasSize } from "../visual/VisualEngine";
+import { updateLowFrequencyLevel } from "../../../../public/visualizers/shared/low-envelope.js";
+import { energyByMethod } from "../../../../public/visualizers/shared/analysis.js";
 
 interface VisualizationProps {
   featuresRef: MutableRefObject<AudioFeatures>;
@@ -19,6 +21,8 @@ interface VisualizationProps {
   reducedMotion: boolean;
   audioElement: HTMLAudioElement;
   tempo: TempoAnalysis | null;
+  energyMethod: string;
+  lowEnvelope: Float32Array | null;
   onMetrics: (fps: number, particleCount: number) => void;
   onNodeLayout: (positions: Record<string, { x: number; y: number }>) => void;
 }
@@ -31,6 +35,8 @@ export function Visualization({
   reducedMotion,
   audioElement,
   tempo,
+  energyMethod,
+  lowEnvelope,
   onMetrics,
   onNodeLayout,
 }: VisualizationProps): React.ReactElement {
@@ -39,7 +45,10 @@ export function Visualization({
   const mapFrameRef = useRef<HTMLDivElement | null>(null);
   const engine = useMemo(() => new ParticleEngine(), []);
   const fpsRef = useRef(60);
+  const lowLevelRef = useRef(0);
   const [renderFeatures, setRenderFeatures] = useState(features);
+
+  useEffect(() => { lowLevelRef.current = 0; }, [lowEnvelope]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setRenderFeatures(featuresRef.current), 120);
@@ -91,9 +100,12 @@ export function Visualization({
     }
 
     const activeFeatures = featuresRef.current;
+    lowLevelRef.current = updateLowFrequencyLevel(lowEnvelope, audioElement.currentTime,
+      !audioElement.paused && !audioElement.ended, Math.min(0.1, deltaMs / 1000), lowLevelRef.current);
+    const drive = energyByMethod(energyMethod, activeFeatures.bass, 0, false, lowLevelRef.current, Boolean(lowEnvelope));
     const { width, height } = setCanvasSize(canvas);
-    shell.style.setProperty("--global-rms", `${activeFeatures.rms * masterIntensity}`);
-    shell.style.setProperty("--global-bass", `${activeFeatures.bass * masterIntensity}`);
+    shell.style.setProperty("--global-rms", `${(energyMethod === 'low-envelope' ? drive : activeFeatures.rms) * masterIntensity}`);
+    shell.style.setProperty("--global-bass", `${drive * masterIntensity}`);
     shell.style.setProperty("--global-high", `${activeFeatures.high * masterIntensity}`);
     shell.style.setProperty("--global-onset", `${activeFeatures.onset * masterIntensity}`);
 
@@ -119,6 +131,9 @@ export function Visualization({
               reducedMotion={reducedMotion}
               audioElement={audioElement}
               tempo={tempo}
+              energyMethod={energyMethod}
+              lowLevelRef={lowLevelRef}
+              lowReady={Boolean(lowEnvelope)}
             />
           ))}
         </div>

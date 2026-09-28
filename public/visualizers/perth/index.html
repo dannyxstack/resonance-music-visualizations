@@ -115,6 +115,22 @@
             <input id="vizzyBands" type="range" min="24" max="96" value="64" step="8" />
           </label>
 
+          <section class="common-bpm-panel" aria-label="基础 BPM 预分析">
+            <strong>基础 BPM：<span id="commonBpmValue">--</span></strong>
+            <span>首拍时间偏移：<strong id="commonBeatOffset">-- 秒</strong></span>
+            <label for="bpmMethod">预分析方法</label><select id="bpmMethod"></select>
+            <button id="reanalyzeBpm" type="button" disabled>重新分析 BPM</button>
+            <small id="commonBpmStatus" role="status" aria-live="polite">选择音乐后自动分析</small>
+          </section>
+
+          <section class="meter-methods" aria-label="柱状能量条方法">
+            <label for="bassEnergyMethod">低频能量条</label><select id="bassEnergyMethod"></select>
+            <label for="midEnergyMethod">中频能量条</label><select id="midEnergyMethod"></select>
+            <label for="trebleEnergyMethod">高频能量条</label><select id="trebleEnergyMethod"></select>
+            <label for="sceneEnergyMethod">城市画面能量方法</label><select id="sceneEnergyMethod"></select>
+            <small id="lowEnvelopeStatus" role="status" aria-live="polite">选择音乐后分析低频包络</small>
+          </section>
+
           <label class="control control--checkbox">
             <span>Sky Title</span>
             <input id="skyTitleEnabled" type="checkbox" />

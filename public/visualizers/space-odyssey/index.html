@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#050713" />
+  <title>星际漫游 · RESONANCE</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="odyssey" id="odyssey" aria-label="星际漫游音乐可视化">
+    <canvas id="scene" aria-hidden="true"></canvas>
+    <audio id="player" preload="metadata"></audio>
+
+    <header class="topbar">
+      <div class="identity"><span class="identity-icon" aria-hidden="true">✦</span><div><span class="eyebrow">RESONANCE / VISUAL LAB 004</span><h1>SPACE <em>ODYSSEY</em></h1></div></div>
+      <div class="top-actions">
+        <label class="select-track" for="audioFile"><span aria-hidden="true">♫</span> 选择音乐</label>
+        <input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden />
+        <button id="panelToggle" class="panel-toggle" type="button" aria-controls="controlPanel" aria-expanded="true">收起面板 <span aria-hidden="true">⌃</span></button>
+      </div>
+    </header>
+
+    <div class="scene-copy" aria-hidden="true"><span>THE SOUND HAS NO HORIZON</span><small>左右频谱 · 星际公路</small></div>
+    <div class="scene-readout" aria-hidden="true"><span class="readout-dot"></span><span id="sceneTrack">等待音乐进入轨道</span><strong id="sceneBpm">-- BPM</strong></div>
+
+    <aside id="controlPanel" class="control-panel" aria-label="星际漫游操控面板">
+      <div class="panel-title"><div><span class="eyebrow">FLIGHT CONTROL</span><h2>驾驶舱</h2></div><button id="closePanel" type="button" aria-label="收起面板">×</button></div>
+      <div class="panel-body">
+        <section class="control-section">
+          <div class="section-heading"><span>01 / AUDIO</span><strong>音轨与播放</strong></div>
+          <p class="track-name" id="trackName">尚未选择本地音乐</p>
+          <p class="status" id="audioStatus" role="status" aria-live="polite">选曲后自动分析 BPM 并播放</p>
+          <div class="transport"><button id="playButton" type="button" disabled aria-label="播放">▶</button><div class="seek-area"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled /><div class="time-row"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div>
+          <label class="setting-label" for="volume">音量 <output id="volumeValue">80%</output></label><input id="volume" type="range" min="0" max="100" value="80" />
+        </section>
+        <section class="control-section">
+          <div class="section-heading"><span>02 / TEMPO</span><strong>基础节奏</strong></div>
+          <div class="bpm-display"><strong id="bpmValue">--</strong><span>BPM</span><i id="beatLamp" aria-hidden="true"></i></div>
+          <p class="status">首拍时间偏移：<strong id="firstBeatOffset">-- 秒</strong></p>
+          <label class="setting-label" for="bpmMethod">预分析方法</label>
+          <select id="bpmMethod"></select>
+          <button id="reanalyzeBpm" class="secondary-button" type="button" disabled>重新分析 BPM</button>
+          <p class="status" id="bpmStatus" role="status" aria-live="polite">等待选曲</p>
+        </section>
+        <section class="control-section">
+          <div class="section-heading"><span>03 / SCENE</span><strong>道路与星空</strong></div>
+          <label class="setting-label" for="sensitivity">频谱灵敏度 <output id="sensitivityValue">100%</output></label><input id="sensitivity" type="range" min="40" max="180" value="100" />
+          <label class="setting-label" for="leftEnergyMethod">左侧柱状带能量方法</label><select id="leftEnergyMethod"></select>
+          <label class="setting-label" for="rightEnergyMethod">右侧柱状带能量方法</label><select id="rightEnergyMethod"></select>
+          <p class="status" id="lowEnvelopeStatus" role="status" aria-live="polite">选择音乐后分析低频包络</p>
+          <label class="setting-label" for="glow">道路光晕 <output id="glowValue">75%</output></label><input id="glow" type="range" min="0" max="150" value="75" />
+          <label class="setting-label" for="dim">背景暗度 <output id="dimValue">25%</output></label><input id="dim" type="range" min="0" max="80" value="25" />
+          <label class="setting-label" for="stars">流动星星 <output id="starsValue">50</output> 颗</label><input id="stars" type="range" min="0" max="200" step="1" value="50" />
+          <label class="background-button" for="backgroundFile">替换星空背景 <span aria-hidden="true">↗</span></label>
+          <input id="backgroundFile" type="file" accept="image/*" hidden />
+          <button id="resetBackground" class="text-button" type="button">恢复默认星空</button>
+        </section>
+      </div>
+      <p class="panel-footer">音频与自选背景只在本地浏览器处理 · 按 H 折叠面板</p>
+    </aside>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

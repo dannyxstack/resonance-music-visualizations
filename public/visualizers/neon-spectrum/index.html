@@ -34,7 +34,7 @@
       </div>
     </div>
 
-    <div class="scene-bottom" aria-hidden="true"><span class="scene-bottom-line"></span><span>LET THE MUSIC TAKE SHAPE</span><span id="sceneTime">00:00 / 00:00</span></div>
+    <div class="scene-bottom" aria-hidden="true"><span class="scene-bottom-line"></span><span>LET THE MUSIC TAKE SHAPE</span><span class="scene-bpm" id="sceneBpm" hidden></span><span id="sceneTime">00:00 / 00:00</span></div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <button class="panel-toggle" id="panelToggle" type="button" aria-controls="controlPanel" aria-expanded="true"><span class="toggle-icon" aria-hidden="true">✦</span><span id="toggleLabel">收起设置</span><kbd>H</kbd></button>
@@ -49,6 +49,16 @@
         <div class="transport"><button id="playButton" type="button" disabled aria-label="播放">▶</button><div class="seek-wrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled /><div class="times"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div>
         <label class="row-label" for="volume">音量 <output id="volumeValue">80%</output></label><input id="volume" type="range" min="0" max="100" value="80" />
         <label class="row-label" for="sensitivity">频谱响应 <output id="sensitivityValue">75%</output></label><input id="sensitivity" type="range" min="20" max="150" value="75" />
+        <div class="bpm-panel" aria-label="基础节奏分析">
+          <div class="bpm-result"><span>基础节奏</span><strong id="bpmValue">--</strong><span>BPM</span></div>
+          <p class="setting-hint">首拍时间偏移：<strong id="firstBeatOffset">-- 秒</strong></p>
+          <label class="field-label" for="bpmMethod">分析方法</label>
+          <select id="bpmMethod"></select>
+          <label class="field-label" for="barsEnergyMethod">环形柱状带能量方法</label><select id="barsEnergyMethod"></select>
+          <button class="bpm-action" id="reanalyzeBpm" type="button" disabled>重新分析 BPM</button>
+          <p class="setting-hint" id="bpmStatus" role="status" aria-live="polite">选择音乐后自动分析；结果仅作为全曲基础节奏。</p>
+          <p class="setting-hint" id="lowEnvelopeStatus" role="status" aria-live="polite">选择音乐后分析低频包络</p>
+        </div>
       </div></details>
 
       <details class="control-group" open><summary><span><b>02</b> 中心 Logo</span><span class="chevron">⌄</span></summary><div class="group-content">

@@ -1,21 +1,25 @@
 import { loadLocalAudio, audioErrorMessage } from '../perth/local-audio.js';
+import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from '../shared/analysis.js';
+import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 
 const $ = id => document.getElementById(id);
 const root = document.querySelector('.visualizer');
 const canvas = $('scene');
 const ctx = canvas.getContext('2d', { alpha: false });
 const audio = $('player');
-const settingsIds = ['logoColor', 'titleInput', 'titleColor', 'titleFont', 'titleSize', 'subtitleInput', 'subtitleColor', 'subtitleFont', 'subtitleSize', 'backgroundDim', 'grayscale', 'volume', 'sensitivity'];
+const settingsIds = ['logoColor', 'titleInput', 'titleColor', 'titleFont', 'titleSize', 'subtitleInput', 'subtitleColor', 'subtitleFont', 'subtitleSize', 'backgroundDim', 'grayscale', 'volume', 'sensitivity', 'bpmMethod', 'barsEnergyMethod'];
 const fonts = {
   system: '"Arial Narrow", Impact, "Microsoft YaHei", sans-serif',
   serif: 'Georgia, "Noto Serif SC", serif',
   mono: '"Consolas", "Microsoft YaHei", monospace',
   round: '"Trebuchet MS", "Microsoft YaHei", sans-serif',
 };
-const state = { logoMode: 'color', logoUrl: null, backgroundUrl: null, audioUrl: null, audioSelection: null, audioFile: null, audioReady: false, pending: false, context: null, analyser: null, spectrum: null, image: new Image(), bgCache: document.createElement('canvas'), frame: 0, bass: 0, mid: 0, treble: 0, time: 0, rain: [] };
+const state = { logoMode: 'color', logoUrl: null, backgroundUrl: null, audioUrl: null, audioSelection: null, audioFile: null, audioReady: false, pending: false, context: null, analyser: null, spectrum: null, bpm: null, analysisToken: 0, lowEnvelope: null, lowLevel: 0, lowToken: 0, image: new Image(), bgCache: document.createElement('canvas'), frame: 0, bass: 0, mid: 0, treble: 0, time: 0, rain: [] };
 
+let savedMethods = {};
 try {
   const saved = JSON.parse(localStorage.getItem('resonance:neon-spectrum') || '{}');
+  savedMethods = saved;
   for (const id of settingsIds) {
     if (!(id in saved)) continue;
     const input = $(id);
@@ -27,6 +31,8 @@ try {
   }
   if (saved.logoMode === 'image' || saved.logoMode === 'color') state.logoMode = saved.logoMode;
 } catch {}
+fillMethodSelect($('bpmMethod'), BPM_METHODS, savedMethods.bpmMethod || 'beat-grid');
+fillMethodSelect($('barsEnergyMethod'), ENERGY_METHODS, savedMethods.barsEnergyMethod || 'live');
 
 function saveSettings() {
   const data = Object.fromEntries(settingsIds.map(id => [id, $(id).type === 'checkbox' ? $(id).checked : $(id).value]));
@@ -78,7 +84,76 @@ function getAudioContext() {
   return state.context;
 }
 
+function showBpmResult(result, message) {
+  $('bpmValue').textContent = result ? result.bpm.toFixed(1) : '--';
+  $('firstBeatOffset').textContent = result ? `${firstBeatOffset(result).toFixed(2)} 秒` : '-- 秒';
+  $('sceneBpm').textContent = result ? `${result.bpm.toFixed(1)} BPM` : '';
+  $('sceneBpm').hidden = !result;
+  $('bpmStatus').textContent = message;
+}
+
+async function runBpmAnalysis() {
+  if (!state.audioFile || !state.audioReady) return;
+  const token = ++state.analysisToken;
+  const file = state.audioFile;
+  const method = $('bpmMethod').value;
+  const methodLabel = $('bpmMethod').selectedOptions[0].textContent;
+  $('reanalyzeBpm').disabled = true;
+  state.bpm = null;
+  showBpmResult(null, `正在用「${methodLabel}」分析本地音频…`);
+  let context;
+  try {
+    const bytes = await file.arrayBuffer();
+    if (token !== state.analysisToken) return;
+    context = new AudioContext();
+    const decoded = await context.decodeAudioData(bytes);
+    if (token !== state.analysisToken) return;
+    const result = await analyzeByMethod(decoded, method, () => token !== state.analysisToken, progress => {
+      if (token === state.analysisToken) $('bpmStatus').textContent = `正在用「${methodLabel}」分析… ${Math.round(progress * 100)}%`;
+    });
+    if (token !== state.analysisToken) return;
+    state.bpm = result;
+    if (result) {
+      const confidence = result.confidence >= .45 ? '较稳定' : result.confidence >= .2 ? '一般' : '较低';
+      showBpmResult(result, `${methodLabel} · 节奏可信度${confidence}；可能存在半速／倍速误判。`);
+    } else {
+      showBpmResult(null, '未检测到稳定节奏；可切换方法后重新分析。');
+    }
+  } catch (error) {
+    if (token === state.analysisToken) showBpmResult(null, 'BPM 分析失败；音频仍可正常播放。可换一种方法重试。');
+  } finally {
+    if (context) void context.close();
+    if (token === state.analysisToken) $('reanalyzeBpm').disabled = !state.audioReady;
+  }
+}
+
+async function runLowEnvelopeAnalysis(file) {
+  const token = ++state.lowToken;
+  state.lowEnvelope = null;
+  state.lowLevel = 0;
+  $('lowEnvelopeStatus').textContent = '正在分析 20–130 Hz 低频包络…';
+  try {
+    const env = await analyzeLowFrequencyFile(file, () => token !== state.lowToken, progress => {
+      if (token === state.lowToken) $('lowEnvelopeStatus').textContent = `低频包络分析中… ${Math.round(progress * 100)}%`;
+    });
+    if (token === state.lowToken) {
+      state.lowEnvelope = env;
+      $('lowEnvelopeStatus').textContent = env ? '低频包络已就绪 · 100 帧/秒' : '低频包络分析已取消';
+    }
+  } catch {
+    if (token === state.lowToken) $('lowEnvelopeStatus').textContent = '低频包络分析失败，改用实时能量';
+  }
+}
+
 async function selectAudio(file) {
+  state.analysisToken++;
+  state.lowToken++;
+  state.lowEnvelope = null;
+  state.lowLevel = 0;
+  $('lowEnvelopeStatus').textContent = '等待音频加载…';
+  state.bpm = null;
+  showBpmResult(null, '等待音频加载…');
+  $('reanalyzeBpm').disabled = true;
   state.audioSelection?.abort();
   if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
   state.audioUrl = null;
@@ -100,8 +175,13 @@ async function selectAudio(file) {
     state.audioReady = true;
     setTrackStatus(file.name);
     syncPlayback();
+    void runBpmAnalysis();
+    void runLowEnvelopeAnalysis(file);
   } catch (error) {
-    if (!selection.signal.aborted) setTrackStatus(`${file.name}：${audioErrorMessage(error)}`, true);
+    if (!selection.signal.aborted) {
+      setTrackStatus(`${file.name}：${audioErrorMessage(error)}`, true);
+      showBpmResult(null, '音频加载失败，无法分析 BPM。');
+    }
   }
 }
 
@@ -216,6 +296,8 @@ function makeSpectrum(now) {
   state.mid = smooth(state.mid, active ? energy(220, 2400) : idle);
   state.treble = smooth(state.treble, active ? energy(2400, 12000) : idle);
   const sensitivity = Number($('sensitivity').value) / 75;
+  const beat = active ? beatEnergyAt(state.bpm, audio.currentTime) : 0;
+  const lowMode = $('barsEnergyMethod').value === 'low-envelope' && Boolean(state.lowEnvelope);
   let outline = '', bars = '';
   const count = 144;
   for (let i = 0; i <= count; i++) {
@@ -226,11 +308,12 @@ function makeSpectrum(now) {
     const bin = state.spectrum ? Math.min(state.spectrum.length - 1, Math.floor((i % count) / count * state.spectrum.length * .72)) : 0;
     const energyAt = active ? state.spectrum[bin] / 255 : idle;
     const wave = Math.sin(i * .45 + now * .006) * 2.3;
-    const radius = 185 + ears + wave + (state.bass * 12 + energyAt * 14) * sensitivity;
+    const radius = 185 + ears + wave + (lowMode ? state.lowLevel * 26 : state.bass * 12 + energyAt * 14) * sensitivity;
     const x = 300 + Math.cos(angle) * radius, y = 300 + Math.sin(angle) * radius;
     outline += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `;
     if (i === count || i % 2) continue;
-    const length = 7 + Math.max(0, energyAt * 46 + state.mid * 17 - 3) * sensitivity;
+    const barEnergy = energyByMethod($('barsEnergyMethod').value, energyAt, beat, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope));
+    const length = 7 + Math.max(0, barEnergy * 58 - 3) * sensitivity;
     const bx = 300 + Math.cos(angle) * (radius + 3), by = 300 + Math.sin(angle) * (radius + 3);
     const ex = 300 + Math.cos(angle) * (radius + length), ey = 300 + Math.sin(angle) * (radius + length);
     bars += `M${bx.toFixed(1)} ${by.toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)} `;
@@ -239,11 +322,12 @@ function makeSpectrum(now) {
   $('shape').setAttribute('d', path);
   $('spectrumGlow').setAttribute('d', path);
   $('bars').setAttribute('d', bars);
-  $('artwork').style.filter = `drop-shadow(0 0 ${Math.round(9 + state.bass * 35)}px rgba(244, 85, 197, .54))`;
+  $('artwork').style.filter = `drop-shadow(0 0 ${Math.round(9 + (lowMode ? state.lowLevel : state.bass) * 35)}px rgba(244, 85, 197, .54))`;
 }
 
 function drawFrame(now) {
   state.frame = requestAnimationFrame(drawFrame);
+  state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, audio.currentTime, state.audioReady && !audio.paused && !audio.ended, state.time ? Math.min(0.1, (now - state.time) / 1000) : 0, state.lowLevel);
   const w = innerWidth, h = innerHeight;
   ctx.drawImage(state.bgCache, 0, 0, w, h);
   // Quiet falling-light texture keeps the city alive without obscuring it.
@@ -255,12 +339,27 @@ function drawFrame(now) {
     ctx.beginPath(); ctx.moveTo(drop.x, drop.y); ctx.lineTo(drop.x - 1.5, drop.y + drop.length); ctx.stroke();
   }
   state.time = now;
+  const beatPulse = state.bpm && state.audioReady && !audio.paused && !audio.ended
+    ? beatEnergyAt(state.bpm, audio.currentTime) : 0;
+  const visualPulse = $('barsEnergyMethod').value === 'low-envelope' && state.lowEnvelope ? state.lowLevel : beatPulse;
+  root.style.setProperty('--beat-pulse', visualPulse.toFixed(3));
   makeSpectrum(now);
 }
 
 for (let i = 0; i < 60; i++) state.rain.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, speed: .16 + Math.random() * .55, length: 3 + Math.random() * 15, alpha: .05 + Math.random() * .19, width: .5 + Math.random() * .9 });
 
 for (const id of settingsIds) $(id).addEventListener('input', () => { syncDesign(); if (id === 'backgroundDim' || id === 'grayscale') renderBackground(); });
+$('bpmMethod').addEventListener('change', () => {
+  if (!state.audioReady) return;
+  if (!state.bpm) {
+    state.analysisToken++;
+    $('reanalyzeBpm').disabled = false;
+    $('bpmStatus').textContent = '已切换方法，点击重新分析 BPM。';
+  } else {
+    $('bpmStatus').textContent = '已切换方法；当前显示上次结果，点击重新分析 BPM 更新。';
+  }
+});
+$('reanalyzeBpm').addEventListener('click', () => void runBpmAnalysis());
 $('audioFile').addEventListener('change', event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void selectAudio(file); });
 $('playButton').addEventListener('click', () => void togglePlayback());
 $('seek').addEventListener('input', event => { if (state.audioReady && Number.isFinite(audio.duration)) audio.currentTime = Number(event.target.value) / 1000 * audio.duration; });
@@ -301,7 +400,7 @@ audio.addEventListener('pause', syncPlayback);
 audio.addEventListener('ended', () => { syncPlayback(); if (state.audioFile) setTrackStatus(`${state.audioFile.name} · 播放结束`); });
 audio.addEventListener('error', () => { if (!state.audioReady) return; state.audioReady = false; syncPlayback(); setTrackStatus(audioErrorMessage(audio.error), true); });
 window.addEventListener('resize', resize);
-window.addEventListener('pagehide', () => { state.audioSelection?.abort(); audio.pause(); if (state.audioUrl) URL.revokeObjectURL(state.audioUrl); if (state.logoUrl) URL.revokeObjectURL(state.logoUrl); if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl); cancelAnimationFrame(state.frame); void state.context?.close(); });
+window.addEventListener('pagehide', () => { state.analysisToken++; state.audioSelection?.abort(); audio.pause(); if (state.audioUrl) URL.revokeObjectURL(state.audioUrl); if (state.logoUrl) URL.revokeObjectURL(state.logoUrl); if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl); cancelAnimationFrame(state.frame); void state.context?.close(); });
 
 setPanel(true);
 syncDesign();

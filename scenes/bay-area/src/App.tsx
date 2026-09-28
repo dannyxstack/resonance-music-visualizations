@@ -7,6 +7,7 @@ import { Visualization } from "./components/Visualization";
 import { useAudioEngine } from "./hooks/useAudioEngine";
 import type { BrandAnimationMode } from "./types/company";
 import type { TempoAnalysis, TempoProgress } from "./types/tempo";
+import { analyzeLowFrequencyFile } from "../../../public/visualizers/shared/low-envelope.js";
 
 export default function App(): React.ReactElement {
   const audio = useAudioEngine();
@@ -18,7 +19,14 @@ export default function App(): React.ReactElement {
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [tempo, setTempo] = useState<TempoAnalysis | null>(null);
   const [tempoProgress, setTempoProgress] = useState<TempoProgress | null>(null);
+  const [bpmMethod, setBpmMethod] = useState('beat-grid');
+  const [energyMethod, setEnergyMethod] = useState('live');
+  const [lowEnvelope, setLowEnvelope] = useState<Float32Array | null>(null);
+  const [lowProgress, setLowProgress] = useState<number | null>(null);
+  const [lowFailed, setLowFailed] = useState(false);
+  const lowTokenRef = useRef(0);
   const analysisTokenRef = useRef(0);
+  const selectedFileRef = useRef<File | null>(null);
   const animationMode: BrandAnimationMode = "safe-wrapper";
 
   useEffect(() => {
@@ -48,6 +56,38 @@ export default function App(): React.ReactElement {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [audio]);
 
+  const analyzeSelected = async (file: File, method: string): Promise<void> => {
+    const token = ++analysisTokenRef.current;
+    setTempo(null);
+    setTempoProgress({ phase: "Reading", progress: 0 });
+    try {
+      const nextTempo = await analyzeTempo(file, method, progress => {
+        if (analysisTokenRef.current === token) setTempoProgress(progress);
+      }, () => analysisTokenRef.current !== token);
+      if (analysisTokenRef.current === token) setTempo(nextTempo);
+    } catch {
+      if (analysisTokenRef.current === token) setTempo(null);
+    } finally {
+      if (analysisTokenRef.current === token) setTempoProgress(null);
+    }
+  };
+
+  const analyzeLowSelected = async (file: File): Promise<void> => {
+    const token = ++lowTokenRef.current;
+    setLowEnvelope(null);
+    setLowProgress(0);
+    setLowFailed(false);
+    try {
+      const env = await analyzeLowFrequencyFile(file, () => lowTokenRef.current !== token,
+        progress => { if (lowTokenRef.current === token) setLowProgress(progress); });
+      if (lowTokenRef.current === token) setLowEnvelope(env);
+    } catch {
+      if (lowTokenRef.current === token) { setLowEnvelope(null); setLowFailed(true); }
+    } finally {
+      if (lowTokenRef.current === token) setLowProgress(null);
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -66,6 +106,8 @@ export default function App(): React.ReactElement {
         reducedMotion={reducedMotion}
         audioElement={audio.engine.audio}
         tempo={tempo}
+        energyMethod={energyMethod}
+        lowEnvelope={lowEnvelope}
         onMetrics={(fps, particleCount) => setMetrics({ fps, particleCount })}
         onNodeLayout={setNodePositions}
       />
@@ -80,33 +122,22 @@ export default function App(): React.ReactElement {
         catalogOpen={catalogOpen}
         tempo={tempo}
         tempoProgress={tempoProgress}
+        bpmMethod={bpmMethod}
+        energyMethod={energyMethod}
+        lowProgress={lowProgress}
+        lowReady={Boolean(lowEnvelope)}
+        lowFailed={lowFailed}
         onFile={async (file) => {
-          const token = analysisTokenRef.current + 1;
-          analysisTokenRef.current = token;
+          selectedFileRef.current = file;
           audio.pause();
           audio.loadFile(file);
-          setTempo(null);
-          setTempoProgress({ phase: "Reading", progress: 0 });
-          try {
-            const nextTempo = await analyzeTempo(file, (progress) => {
-              if (analysisTokenRef.current === token) {
-                setTempoProgress(progress);
-              }
-            });
-            if (analysisTokenRef.current === token) {
-              setTempo(nextTempo);
-            }
-          } catch {
-            if (analysisTokenRef.current === token) {
-              setTempo(null);
-            }
-          } finally {
-            if (analysisTokenRef.current === token) {
-              setTempoProgress(null);
-              await audio.play();
-            }
-          }
+          void analyzeSelected(file, bpmMethod);
+          void analyzeLowSelected(file);
+          if (selectedFileRef.current === file) await audio.play();
         }}
+        onEnergyMethod={setEnergyMethod}
+        onBpmMethod={method => { analysisTokenRef.current++; setTempoProgress(null); setBpmMethod(method); }}
+        onReanalyze={() => { if (selectedFileRef.current) void analyzeSelected(selectedFileRef.current, bpmMethod); }}
         onPlay={() => void audio.play()}
         onPause={audio.pause}
         onSeek={audio.seek}

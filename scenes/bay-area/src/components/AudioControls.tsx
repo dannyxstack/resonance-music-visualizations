@@ -1,5 +1,6 @@
 import type { TempoAnalysis, TempoProgress } from "../types/tempo";
 import { useId } from "react";
+import { BPM_METHODS, ENERGY_METHODS } from "../../../../public/visualizers/shared/analysis.js";
 
 interface AudioControlsProps {
   isPlaying: boolean;
@@ -11,11 +12,19 @@ interface AudioControlsProps {
   catalogOpen: boolean;
   tempo: TempoAnalysis | null;
   tempoProgress: TempoProgress | null;
+  bpmMethod: string;
+  energyMethod: string;
+  lowProgress: number | null;
+  lowReady: boolean;
+  lowFailed: boolean;
   onFile: (file: File) => void | Promise<void>;
   onPlay: () => void;
   onPause: () => void;
   onSeek: (time: number) => void;
   onIntensity: (value: number) => void;
+  onBpmMethod: (method: string) => void;
+  onEnergyMethod: (method: string) => void;
+  onReanalyze: () => void;
   onToggleCatalog: () => void;
 }
 
@@ -38,11 +47,19 @@ export function AudioControls({
   catalogOpen,
   tempo,
   tempoProgress,
+  bpmMethod,
+  energyMethod,
+  lowProgress,
+  lowReady,
+  lowFailed,
   onFile,
   onPlay,
   onPause,
   onSeek,
   onIntensity,
+  onBpmMethod,
+  onEnergyMethod,
+  onReanalyze,
   onToggleCatalog,
 }: AudioControlsProps): React.ReactElement {
   const fileId = useId();
@@ -103,8 +120,22 @@ export function AudioControls({
             </div>
           </div>
         ) : tempo ? (
-          <span className="tempo-pill">BPM {Math.round(tempo.bpm)}</span>
+          <span className="tempo-pill">BPM {tempo.bpm.toFixed(1)} · 首拍偏移 {tempo.firstBeatTime.toFixed(2)} 秒</span>
         ) : null}
+        <label className="bpm-method-control">
+          <span>预分析方法</span>
+          <select value={bpmMethod} onChange={event => onBpmMethod(event.currentTarget.value)}>
+            {BPM_METHODS.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
+          </select>
+        </label>
+        <button type="button" className="bpm-reanalyze" onClick={onReanalyze} disabled={!fileName || Boolean(tempoProgress)}>重新分析 BPM</button>
+        <label className="bpm-method-control">
+          <span>节点能量方法</span>
+          <select value={energyMethod} onChange={event => onEnergyMethod(event.currentTarget.value)}>
+            {ENERGY_METHODS.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
+          </select>
+        </label>
+        <span className="tempo-pill">低频包络 {lowProgress !== null ? `${Math.round(lowProgress * 100)}%` : lowReady ? '已就绪' : lowFailed ? '分析失败，使用实时能量' : '等待选曲'}</span>
         <label className="intensity-control">
           <span>Energy</span>
           <input

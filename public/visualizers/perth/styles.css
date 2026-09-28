@@ -293,6 +293,13 @@ input[type="number"] {
   min-width: 360px;
 }
 
+.common-bpm-panel,.meter-methods{grid-column:span 4;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px;padding:12px;border:1px solid rgb(139 201 235 / 35%);border-radius:8px;background:rgb(8 28 46 / 52%);font-size:12px;color:#dcefff}
+.common-bpm-panel>strong,.common-bpm-panel>span,.common-bpm-panel>small{grid-column:1/-1}
+.common-bpm-panel label,.meter-methods label{align-self:center}
+.common-bpm-panel select,.meter-methods select{min-width:0;width:100%;padding:6px;border:1px solid rgb(139 201 235 / 45%);border-radius:5px;background:#11263c;color:#e8f7ff}
+.common-bpm-panel button{border:1px solid #8bc9eb;border-radius:5px;background:#183d58;color:#e8f7ff;padding:6px}
+.common-bpm-panel button:disabled{opacity:.5}
+
 .beat-panel__header,
 .beat-row {
   display: grid;

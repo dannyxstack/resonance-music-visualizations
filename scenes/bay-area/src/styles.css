@@ -265,6 +265,10 @@ h1 {
     transform 140ms ease;
 }
 
+.company-node.low-envelope-mode .node-glyph::before {
+  transition: none;
+}
+
 .node-glyph::after {
   position: absolute;
   z-index: 3;
@@ -529,6 +533,12 @@ h1 {
   font-size: 12px;
   white-space: nowrap;
 }
+
+.meta-row{flex-wrap:wrap}
+.bpm-method-control{display:inline-flex;align-items:center;gap:7px;color:rgba(234,240,249,.76);font-size:12px}
+.bpm-method-control select{max-width:220px;min-height:30px;padding:4px 7px;border:1px solid rgba(226,235,255,.2);border-radius:6px;background:#121a26;color:#eef3fb}
+.bpm-reanalyze{min-height:30px;padding:4px 9px;border:1px solid rgba(226,235,255,.2);border-radius:6px;background:#1b2635;color:#eef3fb;cursor:pointer}
+.bpm-reanalyze:disabled{opacity:.45;cursor:not-allowed}
 
 .intensity-control {
   display: inline-flex;

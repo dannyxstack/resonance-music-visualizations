@@ -1,6 +1,15 @@
 // Add new independent visualizers here; entry and cover are relative to public/.
 export const projects = [
   {
+    id: 'space-odyssey', title: '星际漫游 · 声波公路', english: 'SPACE ODYSSEY',
+    category: '宇宙旅程', location: 'BEYOND THE HORIZON', year: '2026',
+    description: '驶入绚丽星云。左右两侧的连续频谱沿透视公路延伸，跟随音乐与基础节拍跃动。',
+    tags: ['星空', '透视公路', '双侧频谱', 'BPM 预分析'],
+    entry: 'visualizers/space-odyssey/index.html', cover: 'visualizers/space-odyssey/nebula.png',
+    accent: '#8ddcff', featured: false,
+    instructions: '选择本地音乐后自动分析 BPM 并播放。可替换星空背景、调整频谱与道路光晕；按 H 折叠或展开操控面板。',
+  },
+  {
     id: 'neon-spectrum', title: '霓虹 · 声浪环', english: 'NEON SPECTRUM',
     category: '动态频谱', location: 'YOUR CITY, YOUR SOUND', year: '2026',
     description: '让城市成为舞台。霓虹频谱随音乐跃动，中心封面、文字与背景都由你定义。',

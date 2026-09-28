@@ -1,4 +1,6 @@
 import { loadLocalAudio, audioErrorMessage } from "./local-audio.js";
+import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from "../shared/analysis.js";
+import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from "../shared/low-envelope.js";
 
 const canvas = document.querySelector("#scene");
 const ctx = canvas.getContext("2d");
@@ -31,6 +33,80 @@ const meterEls = {
   mid: document.querySelector("#midMeter"),
   treble: document.querySelector("#trebleMeter"),
 };
+const bpmMethodInput = document.querySelector('#bpmMethod');
+const reanalyzeBpmButton = document.querySelector('#reanalyzeBpm');
+const meterMethodInputs = Object.fromEntries(['bass', 'mid', 'treble'].map(band => [band, document.querySelector(`#${band}EnergyMethod`)]));
+const sceneEnergyMethodInput = document.querySelector('#sceneEnergyMethod');
+const lowEnvelopeStatus = document.querySelector('#lowEnvelopeStatus');
+let lowEnvelope = null;
+let lowLevel = 0;
+let lowToken = 0;
+let commonBpm = null;
+let commonBpmToken = 0;
+let savedMethodSettings = {};
+try { savedMethodSettings = JSON.parse(localStorage.getItem('resonance:perth-analysis') || '{}'); } catch {}
+fillMethodSelect(bpmMethodInput, BPM_METHODS, savedMethodSettings.bpmMethod || 'beat-grid');
+fillMethodSelect(sceneEnergyMethodInput, ENERGY_METHODS, savedMethodSettings.sceneEnergyMethod || 'live');
+for (const band of ['bass', 'mid', 'treble']) fillMethodSelect(meterMethodInputs[band], ENERGY_METHODS, savedMethodSettings[`${band}EnergyMethod`] || 'live');
+function saveMethodSettings() {
+  const settings = { bpmMethod: bpmMethodInput.value, sceneEnergyMethod: sceneEnergyMethodInput.value };
+  for (const band of ['bass', 'mid', 'treble']) settings[`${band}EnergyMethod`] = meterMethodInputs[band].value;
+  try { localStorage.setItem('resonance:perth-analysis', JSON.stringify(settings)); } catch {}
+}
+
+function showCommonBpm(result, message) {
+  document.querySelector('#commonBpmValue').textContent = result ? result.bpm.toFixed(1) : '--';
+  document.querySelector('#commonBeatOffset').textContent = result ? `${firstBeatOffset(result).toFixed(2)} 秒` : '-- 秒';
+  document.querySelector('#commonBpmStatus').textContent = message;
+}
+
+async function runCommonBpmAnalysis(file, selection) {
+  if (!file || !audioReady) return;
+  const token = ++commonBpmToken;
+  const method = bpmMethodInput.value;
+  reanalyzeBpmButton.disabled = true;
+  commonBpm = null;
+  showCommonBpm(null, '正在分析…');
+  let context;
+  try {
+    const bytes = await file.arrayBuffer();
+    if (selection !== audioSelection || token !== commonBpmToken) return;
+    context = new AudioContext();
+    const decoded = await context.decodeAudioData(bytes);
+    if (selection !== audioSelection || token !== commonBpmToken) return;
+    const result = await analyzeByMethod(decoded, method, () => selection !== audioSelection || token !== commonBpmToken,
+      progress => { if (token === commonBpmToken) document.querySelector('#commonBpmStatus').textContent = `正在分析… ${Math.round(progress * 100)}%`; });
+    if (selection !== audioSelection || token !== commonBpmToken) return;
+    commonBpm = result;
+    if (result) {
+      showCommonBpm(result, `${BPM_METHODS.find(item => item.value === method)?.label} · 已检出 ${result.beats.length} 拍`);
+      updateBeatTrack(beatTracks.main, { bpm: result.bpm, offset: firstBeatOffset(result) });
+    } else showCommonBpm(null, '未检测到稳定节奏，可切换方法重试');
+  } catch {
+    if (selection === audioSelection && token === commonBpmToken) showCommonBpm(null, 'BPM 分析失败，音乐仍可播放');
+  } finally {
+    if (context) void context.close();
+    if (selection === audioSelection && token === commonBpmToken) reanalyzeBpmButton.disabled = !audioReady;
+  }
+}
+
+async function runLowEnvelopeAnalysis(file, selection) {
+  const token = ++lowToken;
+  lowEnvelope = null;
+  lowLevel = 0;
+  lowEnvelopeStatus.textContent = '正在分析 20–130 Hz 低频包络…';
+  try {
+    const env = await analyzeLowFrequencyFile(file, () => token !== lowToken || selection !== audioSelection, progress => {
+      if (token === lowToken) lowEnvelopeStatus.textContent = `低频包络分析中… ${Math.round(progress * 100)}%`;
+    });
+    if (token === lowToken && selection === audioSelection) {
+      lowEnvelope = env;
+      lowEnvelopeStatus.textContent = env ? '低频包络已就绪 · 100 帧/秒' : '低频包络分析已取消';
+    }
+  } catch {
+    if (token === lowToken) lowEnvelopeStatus.textContent = '低频包络分析失败，改用实时能量';
+  }
+}
 
 const audio = document.querySelector("#audioPlayback");
 // Selected files are local blob URLs and do not need cross-origin requests.
@@ -808,14 +884,19 @@ function analyzeAudio() {
   const raw = isVizzyMode() ? analyzeVizzyBands() : classic;
   const smoothing = isVizzyMode() ? 0.46 : 0.78;
   const incoming = 1 - smoothing;
+  const beat = isPlaying ? beatEnergyAt(commonBpm, audio.currentTime) : 0;
 
   for (const band of ["bass", "mid", "treble"]) {
     smoothed[band] = smoothed[band] * smoothing + raw[band] * incoming;
-    meterEls[band].style.setProperty("--level", smoothed[band].toFixed(3));
+    const meterEnergy = energyByMethod(meterMethodInputs[band].value, smoothed[band], beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope));
+    meterEls[band].style.setProperty("--level", meterEnergy.toFixed(3));
   }
 
+  const sceneMethod = sceneEnergyMethodInput.value;
+  const sceneEnergy = Object.fromEntries(['bass', 'mid', 'treble'].map(band => [band,
+    energyByMethod(sceneMethod, smoothed[band], beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope))]));
   return {
-    ...smoothed,
+    ...sceneEnergy,
     onset: raw.onset || { bass: 0, mid: 0, treble: 0, global: 0 },
   };
 }
@@ -1368,6 +1449,8 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
 
+  lowLevel = updateLowFrequencyLevel(lowEnvelope, audio.currentTime, isPlaying && !audio.ended, dt, lowLevel);
+
   const energy = analyzeAudio();
   updateBeatPulses();
   updateHoveredBuilding();
@@ -1434,6 +1517,14 @@ fileInput.addEventListener("change", async () => {
   // Allow choosing the same file again after a failed attempt.
   fileInput.value = "";
   audioSelection?.abort();
+  commonBpmToken++;
+  lowToken++;
+  lowEnvelope = null;
+  lowLevel = 0;
+  lowEnvelopeStatus.textContent = '等待音频加载…';
+  commonBpm = null;
+  showCommonBpm(null, '等待音频加载…');
+  reanalyzeBpmButton.disabled = true;
   const selection = new AbortController();
   audioSelection = selection;
   audioReady = false;
@@ -1466,6 +1557,8 @@ fileInput.addEventListener("change", async () => {
     audioReady = true;
     playButton.disabled = false;
     detectBeatButton.disabled = false;
+    void runCommonBpmAnalysis(file, selection);
+    void runLowEnvelopeAnalysis(file, selection);
     setAudioStatus(`已就绪：${file.name} · 点击播放`);
     requestAnimationFrame(() => { if (!selection.signal.aborted) playButton.focus(); });
   } catch (error) {
@@ -1484,6 +1577,18 @@ cityImageInput.addEventListener("change", () => {
 playButton.addEventListener("click", () => {
   togglePlayback();
 });
+
+bpmMethodInput.addEventListener('change', () => {
+  saveMethodSettings();
+  if (audioReady) {
+    commonBpmToken++;
+    reanalyzeBpmButton.disabled = false;
+    document.querySelector('#commonBpmStatus').textContent = '已切换方法，点击重新分析 BPM';
+  }
+});
+reanalyzeBpmButton.addEventListener('click', () => void runCommonBpmAnalysis(selectedAudioFile, audioSelection));
+for (const band of ['bass', 'mid', 'treble']) meterMethodInputs[band].addEventListener('change', saveMethodSettings);
+sceneEnergyMethodInput.addEventListener('change', saveMethodSettings);
 
 advancedToggle.addEventListener("click", () => {
   setAdvancedCollapsed(!controlsPanel.classList.contains("is-collapsed"));
@@ -1610,6 +1715,7 @@ audio.addEventListener("error", () => {
 });
 
 window.addEventListener("pagehide", () => {
+  commonBpmToken++;
   audioSelection?.abort();
   audio.pause();
   if (audioUrl) URL.revokeObjectURL(audioUrl);

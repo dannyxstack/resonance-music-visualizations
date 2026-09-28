@@ -3,6 +3,7 @@ import type { AudioFeatures } from "../types/audio";
 import type { BrandAnimationMode, CompanyNodeConfig } from "../types/company";
 import type { TempoAnalysis } from "../types/tempo";
 import { useAnimationFrame } from "../hooks/useAnimationFrame";
+import { energyByMethod } from "../../../../public/visualizers/shared/analysis.js";
 
 interface CompanyNodeProps {
   config: CompanyNodeConfig;
@@ -11,6 +12,9 @@ interface CompanyNodeProps {
   reducedMotion: boolean;
   audioElement: HTMLAudioElement;
   tempo: TempoAnalysis | null;
+  energyMethod: string;
+  lowLevelRef: MutableRefObject<number>;
+  lowReady: boolean;
 }
 
 export function CompanyNode({
@@ -20,6 +24,9 @@ export function CompanyNode({
   reducedMotion,
   audioElement,
   tempo,
+  energyMethod,
+  lowLevelRef,
+  lowReady,
 }: CompanyNodeProps): React.ReactElement {
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const glyphRef = useRef<HTMLDivElement | null>(null);
@@ -84,14 +91,19 @@ export function CompanyNode({
     }
 
     const features = audioFeaturesRef.current;
-    const target = Math.min(1, features[config.frequencyBand] * config.intensity + features.onset * 0.12);
-    energyRef.current += (target - energyRef.current) * config.response;
+    const lowMode = energyMethod === 'low-envelope' && lowReady;
+    node.classList.toggle('low-envelope-mode', lowMode);
+    const beat = tempo ? Math.max(0, 1 - Math.abs(audioElement.currentTime - (tempo.firstBeatTime + Math.round((audioElement.currentTime - tempo.firstBeatTime) / tempo.beatInterval) * tempo.beatInterval)) / .18) : 0;
+    const target = energyByMethod(energyMethod,
+      Math.min(1, features[config.frequencyBand] * config.intensity + features.onset * 0.12), beat, Boolean(tempo), lowLevelRef.current, lowReady);
+    if (lowMode && lowReady) energyRef.current = target;
+    else energyRef.current += (target - energyRef.current) * config.response;
 
-    if (features.beat && !lastBeatRef.current && (config.motion === "pulse" || config.motion === "ripple")) {
+    if (!lowMode && features.beat && !lastBeatRef.current && (config.motion === "pulse" || config.motion === "ripple")) {
       beatFlashRef.current = 1;
     }
-    lastBeatRef.current = features.beat;
-    beatFlashRef.current = Math.max(0, beatFlashRef.current - deltaMs / 380);
+    lastBeatRef.current = !lowMode && features.beat;
+    beatFlashRef.current = lowMode ? 0 : Math.max(0, beatFlashRef.current - deltaMs / 380);
 
     const energy = energyRef.current;
     const motionScale = reducedMotion ? 0.35 : 1;
@@ -139,6 +151,7 @@ export function CompanyNode({
     let backgroundClip = "circle(50% at 50% 50%)";
     let backgroundRadius = "50%";
     const tempoBeatEnvelope = (() => {
+      if (lowMode) return lowLevelRef.current;
       if (!tempo || reducedMotion) {
         return 0;
       }
@@ -165,7 +178,7 @@ export function CompanyNode({
       beatBrightness = Math.max(beatBrightness, tempoBeatEnvelope * 0.45);
     }
 
-    if (config.motion === "beatShape" && tempo && !reducedMotion) {
+    if (config.motion === "beatShape" && tempo && !lowMode && !reducedMotion) {
       const beatPosition = (audioElement.currentTime - tempo.firstBeatTime) / tempo.beatInterval;
       const beatIndex = Math.max(0, Math.floor(beatPosition));
       const shapeIndex = beatIndex % 4;
@@ -184,7 +197,7 @@ export function CompanyNode({
       beatBrightness = Math.max(beatBrightness, tempoBeatEnvelope * 0.42);
     }
 
-    if (config.motion === "beatJump" && tempo && !reducedMotion) {
+    if (config.motion === "beatJump" && tempo && !lowMode && !reducedMotion) {
       const unitInterval = tempo.beatInterval / beatProfile.rate;
       const beatPosition = (audioElement.currentTime - tempo.firstBeatTime) / unitInterval;
       const nearestUnit = Math.round(beatPosition);
@@ -197,7 +210,7 @@ export function CompanyNode({
       beatJump = allowed ? -beatProfile.jumpHeight * Math.sin(envelope * Math.PI) : 0;
     }
 
-    if (config.motion === "beatSideStep" && tempo && !reducedMotion) {
+    if (config.motion === "beatSideStep" && tempo && !lowMode && !reducedMotion) {
       const beatPosition = (audioElement.currentTime - tempo.firstBeatTime) / tempo.beatInterval;
       const nearestBeat = Math.round(beatPosition);
       const nearestBeatTime = tempo.firstBeatTime + nearestBeat * tempo.beatInterval;
@@ -210,7 +223,7 @@ export function CompanyNode({
       beatJump = target === 0 ? -beatProfile.jumpHeight * 0.36 * Math.sin(envelope * Math.PI) : 0;
     }
 
-    if (config.motion === "beatTilt" && tempo && !reducedMotion) {
+    if (config.motion === "beatTilt" && tempo && !lowMode && !reducedMotion) {
       const beatPosition = (audioElement.currentTime - tempo.firstBeatTime) / tempo.beatInterval;
       const beatIndex = Math.floor(beatPosition);
       const phase = beatPosition - beatIndex;

@@ -1,0 +1,6 @@
+services:
+  resonance:
+    build: .
+    ports:
+      - "8032:80"
+    restart: unless-stopped
