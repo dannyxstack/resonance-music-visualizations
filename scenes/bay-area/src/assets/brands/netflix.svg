@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Netflix">
+  <rect width="64" height="64" rx="10" fill="#111"/>
+  <path fill="#e50914" d="M18 8h11l17 48H35L18 8Z"/>
+  <path fill="#b1060f" d="M18 8h10v48H18V8Zm18 0h10v48H36V8Z"/>
+</svg>

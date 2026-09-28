@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Music Wave Vision Under Thunder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <canvas id="scene" aria-label="Music-driven skyline visualization"></canvas>
+      <audio id="audioPlayback" preload="auto" hidden></audio>
+
+      <section class="controls" aria-label="Music visualization controls">
+        <div class="brand">
+          <span class="kicker">Audio Skyline</span>
+          <h1>Music Wave Visualization With Skyline</h1>
+        </div>
+
+        <label class="file-picker icon-control" aria-label="Choose audio" title="Choose audio">
+          <input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" />
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 18V5l11-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="17" cy="16" r="3" />
+          </svg>
+          <span class="sr-only">Choose Audio</span>
+        </label>
+
+        <label class="file-picker icon-control" aria-label="Choose city image" title="Choose city image">
+          <input id="cityImage" type="file" accept="image/*" />
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <circle cx="8" cy="10" r="2" />
+            <path d="m4 17 5-5 4 4 2-2 5 5" />
+          </svg>
+          <span class="sr-only">Choose City Image</span>
+        </label>
+
+        <button id="playPause" class="icon-control" type="button" disabled aria-label="Play" title="Play">
+          <svg class="icon play-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          <svg class="icon pause-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 5h4v14H7z" />
+            <path d="M13 5h4v14h-4z" />
+          </svg>
+          <span class="sr-only">Play</span>
+        </button>
+
+        <button
+          id="advancedToggle"
+          class="icon-control"
+          type="button"
+          aria-expanded="true"
+          aria-controls="advancedControls"
+          aria-label="Collapse settings"
+          title="Collapse settings"
+        >
+          <svg class="icon collapse-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 15 6-6 6 6" />
+          </svg>
+          <span class="sr-only">Collapse settings</span>
+        </button>
+
+        <div id="advancedControls" class="advanced-controls">
+          <button id="analysisModeToggle" class="mode-toggle" type="button" aria-pressed="false">
+            Classic
+          </button>
+
+          <label class="control">
+            <span>Lightning Brightness</span>
+            <input id="lightningBoost" type="range" min="0.4" max="2.2" value="1.2" step="0.05" />
+          </label>
+
+          <label class="control control--checkbox">
+            <span>Lightning</span>
+            <input id="lightningEnabled" type="checkbox" checked />
+            <span>Show</span>
+          </label>
+
+          <label class="control">
+            <span>Lightning Frequency <strong id="lightningFrequencyValue">1x</strong></span>
+            <input id="lightningFrequency" type="range" min="-4" max="4" value="0" step="1" />
+          </label>
+
+          <label class="control">
+            <span>Base Background Brightness</span>
+            <input id="backgroundBrightness" type="range" min="0.15" max="0.75" value="0.75" step="0.01" />
+          </label>
+
+          <label class="control control--checkbox">
+            <span>Stars</span>
+            <input id="starsEnabled" type="checkbox" checked />
+            <span>Show</span>
+          </label>
+
+          <label class="control">
+            <span>Star Count <strong id="starCountValue">50</strong></span>
+            <input id="starCount" type="range" min="0" max="160" value="50" step="1" />
+          </label>
+
+          <label class="control">
+            <span>Star Speed <strong id="starSpeedValue">1.0x</strong></span>
+            <input id="starSpeed" type="range" min="0" max="4" value="1" step="0.1" />
+          </label>
+
+          <label class="control vizzy-control">
+            <span>Vizzy Sensitivity</span>
+            <input id="vizzySensitivity" type="range" min="0.7" max="2.6" value="1.35" step="0.05" />
+          </label>
+
+          <label class="control vizzy-control">
+            <span>Vizzy Bands</span>
+            <input id="vizzyBands" type="range" min="24" max="96" value="64" step="8" />
+          </label>
+
+          <label class="control control--checkbox">
+            <span>Sky Title</span>
+            <input id="skyTitleEnabled" type="checkbox" />
+            <span>Show</span>
+          </label>
+
+          <label class="control">
+            <span>Sky Title Text</span>
+            <input id="skyTitleText" type="text" value="Music Wave Visualization With Skyline" />
+          </label>
+
+          <label class="control">
+            <span>Sky Title Rhythm</span>
+            <select id="skyTitleBeatTrack">
+              <option value="main" selected>Main</option>
+              <option value="kick">Kick</option>
+              <option value="backbeat">Backbeat</option>
+              <option value="hats">Hats</option>
+            </select>
+          </label>
+
+          <section class="beat-panel" aria-label="Beat building mapping">
+            <div class="beat-panel__header">
+              <span>Beat Buildings</span>
+              <button id="detectBeat" class="mode-toggle" type="button" disabled>
+                Detect Beats
+              </button>
+            </div>
+
+            <div class="beat-row beat-row--labels" aria-hidden="true">
+              <span>Track</span>
+              <span>Building</span>
+              <span>BPM</span>
+              <span>Offset</span>
+              <span>Status</span>
+            </div>
+
+            <div class="beat-row" data-beat-track="main">
+              <span class="beat-row__name">Main</span>
+              <input data-role="building" type="text" value="7" placeholder="Building name" aria-label="Main beat building name" />
+              <input data-role="bpm" type="number" min="0" max="240" value="0" step="0.1" aria-label="Main beat BPM" />
+              <input data-role="offset" type="number" min="0" max="10" value="0" step="0.01" aria-label="Main beat offset" />
+              <strong data-role="status">Not detected</strong>
+            </div>
+
+            <div class="beat-row" data-beat-track="kick">
+              <span class="beat-row__name">Kick</span>
+              <input data-role="building" type="text" value="" placeholder="Building name" aria-label="Kick beat building name" />
+              <input data-role="bpm" type="number" min="0" max="240" value="0" step="0.1" aria-label="Kick beat BPM" />
+              <input data-role="offset" type="number" min="0" max="10" value="0" step="0.01" aria-label="Kick beat offset" />
+              <strong data-role="status">Not detected</strong>
+            </div>
+
+            <div class="beat-row" data-beat-track="backbeat">
+              <span class="beat-row__name">Backbeat</span>
+              <input data-role="building" type="text" value="" placeholder="Building name" aria-label="Backbeat building name" />
+              <input data-role="bpm" type="number" min="0" max="240" value="0" step="0.1" aria-label="Backbeat BPM" />
+              <input data-role="offset" type="number" min="0" max="10" value="0" step="0.01" aria-label="Backbeat offset" />
+              <strong data-role="status">Not detected</strong>
+            </div>
+
+            <div class="beat-row" data-beat-track="hats">
+              <span class="beat-row__name">Hats</span>
+              <input data-role="building" type="text" value="" placeholder="Building name" aria-label="Hats building name" />
+              <input data-role="bpm" type="number" min="0" max="240" value="0" step="0.1" aria-label="Hats BPM" />
+              <input data-role="offset" type="number" min="0" max="10" value="0" step="0.01" aria-label="Hats offset" />
+              <strong data-role="status">Not detected</strong>
+            </div>
+          </section>
+
+          <fieldset class="control">
+            <legend>Lightning Rhythm</legend>
+            <label><input type="radio" name="lightningBand" value="treble" checked /> Treble</label>
+            <label><input type="radio" name="lightningBand" value="mid" /> Mid</label>
+            <label><input type="radio" name="lightningBand" value="bass" /> Bass</label>
+          </fieldset>
+        </div>
+
+        <p id="audioStatus" class="audio-status" role="status" aria-live="polite" hidden></p>
+        <div class="meters" aria-hidden="true">
+          <span style="--level: 0" id="bassMeter">Bass</span>
+          <span style="--level: 0" id="midMeter">Mid</span>
+          <span style="--level: 0" id="trebleMeter">Treble</span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

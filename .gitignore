@@ -1,0 +1,39 @@
+# Dependencies and generated output
+node_modules/
+dist/
+public/visualizers/bay-area/
+*.tsbuildinfo
+.vite/
+.cache/
+
+# Local test artifacts and coverage
+tests/fixtures/
+coverage/
+playwright-report/
+test-results/
+
+# Local audio selected for testing; browser uploads are never repository assets
+*.mp3
+*.m4a
+*.aac
+*.wav
+*.flac
+*.ogg
+*.opus
+
+# Secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.p12
+*.key
+
+# Editor, OS, and logs
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log

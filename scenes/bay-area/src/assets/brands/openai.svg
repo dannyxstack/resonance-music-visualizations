@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenAI">
+  <g fill="none" stroke="#f1efe7" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+    <path d="M25 8c6-4 14-2 18 4l4 7"/>
+    <path d="M43 12c7 1 12 7 12 14v8"/>
+    <path d="M55 31c3 6 1 14-5 18l-7 4"/>
+    <path d="M40 54c-6 4-14 2-18-4l-4-7"/>
+    <path d="M21 51C14 50 9 44 9 37v-8"/>
+    <path d="M9 33c-3-6-1-14 5-18l7-4"/>
+    <path d="M22 22l20 11-20 11V22Z"/>
+  </g>
+</svg>

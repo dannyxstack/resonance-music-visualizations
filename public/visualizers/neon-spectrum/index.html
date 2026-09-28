@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#090c15" />
+  <title>霓虹声浪环 · RESONANCE</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="visualizer" aria-label="音乐频谱可视化">
+    <canvas id="scene" aria-hidden="true"></canvas>
+    <audio id="player" preload="metadata"></audio>
+
+    <div class="scene-top" aria-hidden="true"><span class="signal-mark"><i></i><i></i><i></i><i></i><i></i></span> RESONANCE <small>VISUAL LAB / 003</small></div>
+
+    <div class="artwork" id="artwork">
+      <div class="halo"></div>
+      <svg id="spectrum" viewBox="0 0 600 600" aria-hidden="true">
+        <defs>
+          <linearGradient id="rim" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#ff5b9d"/><stop offset=".37" stop-color="#c782ff"/><stop offset=".7" stop-color="#5acaff"/><stop offset="1" stop-color="#b8f47c"/></linearGradient>
+          <pattern id="stripes" patternUnits="userSpaceOnUse" width="9" height="9" patternTransform="rotate(45)"><rect width="9" height="9" fill="#171322"/><rect width="4" height="9" fill="#fb338f" opacity=".7"/></pattern>
+          <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <path id="spectrumGlow" fill="none" stroke="url(#rim)" stroke-width="15" opacity=".52" filter="url(#glow)"/>
+        <path id="shape" fill="url(#stripes)" stroke="url(#rim)" stroke-width="4"/>
+        <path id="bars" fill="none" stroke="url(#rim)" stroke-width="3.5" stroke-linecap="round" opacity=".95"/>
+        <circle cx="300" cy="300" r="171" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="1"/>
+      </svg>
+      <div class="badge" id="badge">
+        <img id="logoPreview" alt="自定义中心 Logo" hidden />
+        <div class="badge-shade"></div>
+        <div class="badge-copy"><span class="badge-eyebrow">NOW PLAYING</span><p id="subtitlePreview"></p><h1 id="titlePreview"></h1><span class="badge-foot">SOUND IN MOTION</span></div>
+      </div>
+    </div>
+
+    <div class="scene-bottom" aria-hidden="true"><span class="scene-bottom-line"></span><span>LET THE MUSIC TAKE SHAPE</span><span id="sceneTime">00:00 / 00:00</span></div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <button class="panel-toggle" id="panelToggle" type="button" aria-controls="controlPanel" aria-expanded="true"><span class="toggle-icon" aria-hidden="true">✦</span><span id="toggleLabel">收起设置</span><kbd>H</kbd></button>
+
+    <aside class="control-panel" id="controlPanel" aria-label="可视化设置">
+      <div class="panel-heading"><div><span class="overline">CUSTOMIZE THE EXPERIENCE</span><h2>画面工作台</h2><p>让你的音乐，拥有自己的封面。</p></div><button class="close-panel" id="closePanel" type="button" aria-label="收起设置">×</button></div>
+
+      <details class="control-group" open><summary><span><b>01</b> 音乐与播放</span><span class="chevron">⌄</span></summary><div class="group-content">
+        <label class="upload-button" for="audioFile"><span class="upload-icon">♫</span><span>选择本地音乐</span><span>↗</span></label>
+        <input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden />
+        <div class="track-name" id="trackName">尚未选择音频文件</div>
+        <div class="transport"><button id="playButton" type="button" disabled aria-label="播放">▶</button><div class="seek-wrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled /><div class="times"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div>
+        <label class="row-label" for="volume">音量 <output id="volumeValue">80%</output></label><input id="volume" type="range" min="0" max="100" value="80" />
+        <label class="row-label" for="sensitivity">频谱响应 <output id="sensitivityValue">75%</output></label><input id="sensitivity" type="range" min="20" max="150" value="75" />
+      </div></details>
+
+      <details class="control-group" open><summary><span><b>02</b> 中心 Logo</span><span class="chevron">⌄</span></summary><div class="group-content">
+        <div class="segmented" role="group" aria-label="Logo 背景方式"><button id="modeColor" type="button" aria-pressed="true">纯色背景</button><button id="modeImage" type="button" aria-pressed="false">上传图片</button></div>
+        <div class="logo-color-row"><label for="logoColor">Logo 背景色</label><input id="logoColor" type="color" value="#080811" /></div>
+        <label class="secondary-upload" for="logoFile">选择中心图片 <span>↗</span></label><input id="logoFile" type="file" accept="image/*" hidden />
+        <p class="setting-hint" id="logoHint">图片仅在当前页面使用，文字会显示在图片前方。</p>
+      </div></details>
+
+      <details class="control-group"><summary><span><b>03</b> 文字与排版</span><span class="chevron">⌄</span></summary><div class="group-content">
+        <label class="field-label" for="titleInput">中心文案</label><input id="titleInput" type="text" maxlength="32" value="REMIX" placeholder="输入中心文案" />
+        <div class="field-pair"><label>颜色<input id="titleColor" type="color" value="#f5e879" /></label><label>字体<select id="titleFont"><option value="system">现代粗体</option><option value="serif">衬线</option><option value="mono">等宽</option><option value="round">圆润</option></select></label></div>
+        <label class="row-label" for="titleSize">字号 <output id="titleSizeValue">48px</output></label><input id="titleSize" type="range" min="22" max="72" value="48" />
+        <div class="field-rule"></div>
+        <label class="field-label" for="subtitleInput">副标题</label><input id="subtitleInput" type="text" maxlength="48" value="FEEL THE BEAT" placeholder="输入副标题" />
+        <div class="field-pair"><label>颜色<input id="subtitleColor" type="color" value="#ff9acb" /></label><label>字体<select id="subtitleFont"><option value="system">现代粗体</option><option value="serif">衬线</option><option value="mono">等宽</option><option value="round">圆润</option></select></label></div>
+        <label class="row-label" for="subtitleSize">字号 <output id="subtitleSizeValue">20px</output></label><input id="subtitleSize" type="range" min="12" max="34" value="20" />
+      </div></details>
+
+      <details class="control-group"><summary><span><b>04</b> 城市背景</span><span class="chevron">⌄</span></summary><div class="group-content">
+        <div class="bg-preview"><img src="perth-skyline.png" alt="默认珀斯天际线" /><span>默认 · PERTH SKYLINE</span></div>
+        <label class="secondary-upload" for="backgroundFile">上传自己的城市背景 <span>↗</span></label><input id="backgroundFile" type="file" accept="image/*" hidden />
+        <button class="text-action" id="resetBackground" type="button">恢复默认珀斯背景</button>
+        <label class="row-label" for="backgroundDim">背景暗度 <output id="backgroundDimValue">48%</output></label><input id="backgroundDim" type="range" min="0" max="85" value="48" />
+        <label class="check-row"><input id="grayscale" type="checkbox" checked /> 黑白电影感</label>
+      </div></details>
+
+      <div class="panel-footer"><button id="fullscreen" type="button">⛶ <span>全屏画面</span></button><button id="cleanView" type="button">◌ <span>录屏纯净模式</span></button><p>按 H 隐藏 / 打开工作台，按空格播放 / 暂停。</p></div>
+    </aside>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

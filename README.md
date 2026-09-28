@@ -1,0 +1,101 @@
+# RESONANCE · 音乐可视化空间
+
+一个可扩展的音乐可视化作品平台。首页提供精选作品、搜索、自动分类和本机收藏；点击作品进入独立效果页，可切换作品、查看使用说明、全屏或返回作品集。所有音乐和用户选择的图片都在浏览器本地处理。
+
+当前作品：`bayarea-map`（湾区科技地图）、`perth-skyline`（珀斯天际线）、`neon-spectrum`（可自定义霓虹频谱）。
+
+## 本地运行
+
+需要 Node.js 22.12+，建议使用 `.nvmrc` 指定的 Node.js 24。
+
+```sh
+npm install
+npm run dev
+```
+
+打开 http://127.0.0.1:5188 。如果已经启动了预览服务，先停止该服务，避免端口冲突。
+
+```sh
+npm run build    # 检查湾区 TypeScript、生成湾区独立页面、构建整个平台
+npm test         # 项目配置、文件完整性、音频加载检查（先运行 build）
+npm run preview # 预览 dist 中的生产构建
+```
+
+GitHub Actions 会在推送到 `main` 或发起拉取请求时执行 `npm ci`、构建和测试。仓库应提交 `package-lock.json`，并排除 `node_modules`、`dist`、生成的湾区页面与本地测试音乐。
+
+## 目录和独立性
+
+```text
+src/projects.js                  作品注册表：标题、分类、标签、入口、封面等
+src/main.js                      首页和效果页交互、hash 路由
+src/style.css                    响应式界面
+scenes/bay-area/                 湾区 React / TypeScript 源码副本
+public/visualizers/perth/        珀斯原生 HTML / CSS / JS 及所需图片副本
+public/visualizers/bay-area/     自动生成的湾区构建产物，不手工修改
+public/art/                     平台封面资源
+scripts/run.mjs                 本地开发和构建入口
+dist/                           可发布的完整静态网站
+```
+
+所有源码、素材和运行依赖都位于本项目目录内，不通过符号链接或绝对路径引用原项目。只复制运行所需资源，未复制原目录中的音乐文件、Git 历史和日志。两个原项目保持不变。湾区卡片封面是平台专用地图示意图，效果页仍使用原始可视化引擎和地图资源。
+
+每个效果通过同源 iframe 独立运行，保留原有音频处理和视觉引擎。珀斯本地副本做了嵌入适配：默认收起高级设置，窄屏保留四个并排主按钮，设置面板超高时可滚动。切换或退出时销毁 iframe，从而结束旧页面的播放及动画。全屏只展示效果页面，按 Escape 退出。每个效果分别选择音频，平台不会跨作品传递音乐或播放进度。
+
+收藏只保存在当前浏览器的 localStorage，不需要账户，也不跨设备同步。音频选择、分析和播放沿用原项目的本地处理方式。
+
+## 增加作品
+
+1. 将新作品的完整静态文件复制到 `public/visualizers/<id>/`，确保包含 `index.html`。
+2. HTML、脚本、样式和资源之间使用相对路径。React/Vite 等项目先构建为静态文件，Vite 使用 `base: './'`；如果希望源码也由平台管理，放入 `scenes/<id>/`，并在 `scripts/run.mjs` 中增加构建步骤。
+3. 在 `src/projects.js` 的 `projects` 数组中添加一项：
+
+```js
+{
+  id: 'aurora',
+  title: '极光 · 声音之海',
+  english: 'AURORA SOUND OCEAN',
+  category: '自然光影',
+  location: 'IMAGINARY LANDSCAPE',
+  year: '2026',
+  description: '作品简介。',
+  tags: ['自然光影', '粒子', '低音响应'],
+  entry: 'visualizers/aurora/index.html',
+  cover: 'visualizers/aurora/cover.jpg',
+  accent: '#a9eace',
+  featured: false,
+  instructions: '选择本地音乐，然后点击播放。',
+}
+```
+
+4. 运行 `npm run build` 和 `npm test`。新分类、作品数量、搜索、收藏以及效果页切换选项自动更新。将 `featured` 设为 `true` 可更新首页精选；只保留一个精选项目。
+
+### neon-spectrum · 霓虹声浪环
+
+该作品位于 `public/visualizers/neon-spectrum/`，视觉参考为中央霓虹频谱与城市背景。默认背景是从本项目内的 `perth-skyline` 副本复制而来的 `perth-skyline.png`，无外部目录依赖。
+
+- 在「音乐与播放」选择本地音频，然后播放、暂停、拖动进度、调整音量和频谱响应。
+- 「中心 Logo」可用纯色圆盘或本地图片；「文字与排版」可分别设置中心文案和副标题的文字、颜色、字体、字号。
+- 「城市背景」可上传本地图片、恢复默认珀斯背景、调整暗度和黑白效果。
+- 各组设置可独立折叠；右上角按钮或 **H** 可收起整个工作台。「录屏纯净模式」会隐藏全部页面控件和角标，按 **H** 重新打开设置。按空格播放或暂停。
+
+文字、颜色、字号等参数保存在当前浏览器；选取的音乐、Logo 图片与背景图片仅在当前页面使用，刷新后需要重新选取，不会上传到服务器。
+
+项目注册表是开发者维护的可信配置，不是用户提交内容的存储接口。当前没有后台上传、账户、数据库或在线编辑功能。
+
+修改 `scenes/bay-area` 后重新启动开发命令或重新构建，以更新独立页面。首页和珀斯静态文件在开发服务器中可直接更新。
+
+## perth-skyline 音频加载
+
+`perth-skyline` 是珀斯项目的约定代号，对应 `public/visualizers/perth/`。页面在音频触发 `canplay` 后才启用播放；切换文件会停止旧音频并释放旧地址。加载、播放失败和播放状态显示在主控件下方，失败后可以重新选择同一文件。
+
+本地文件先使用规范 MIME 类型加载。如果媒体元素无法识别，页面会尝试使用 Web Audio 解码，再在内存中转为 PCM WAV 播放。这个流程不上传文件，也不安装解码器；浏览器本身不支持的编码或损坏文件仍会显示失败提示。兼容解码会额外占用内存，普通可播放文件不会走该流程。
+
+播放修复的回归检查覆盖加载就绪、解码恢复、取消旧选曲、资源释放和 WAV 编码。浏览器验证使用 MP3、M4A、PCM WAV，以及无效音频后重新选曲恢复播放。
+
+## 发布
+
+将完整 `dist/` 目录交给任意静态网站服务器即可。平台使用 hash 路由，可直接打开 `/#/experience/perth` 或 `/#/experience/bay-area`，无需服务器重写规则。构建使用相对路径，也支持部署在子目录。请通过 HTTP 服务访问，不要直接双击构建的 HTML 文件。
+
+## 验证范围
+
+构建包含湾区源码的 TypeScript 检查；自动检查覆盖注册表本地资源完整性及搜索、分类、收藏组合逻辑。音频引擎来自原项目，实际播放效果取决于浏览器支持、设备性能及用户选择的音乐。
