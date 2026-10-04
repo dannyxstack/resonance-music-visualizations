@@ -3,7 +3,7 @@ import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEne
 import { travelingDepth, roadPoint, movingStar } from './scene-motion.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
-import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from '../shared/low-envelope.js';
+import { analyzeLowFrequencyFile, buildLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 
 const $ = id => document.getElementById(id);
 const root = $('odyssey');
@@ -17,7 +17,7 @@ const state = {
   context: null, analyser: null, spectrum: null,
   selection: null, audioFile: null, audioUrl: null, audioReady: false, pending: false,
   analysisToken: 0, bpm: null,
-  lowEnvelope: null, lowLevel: 0, lowToken: 0, lastFrameTime: 0,
+  lowEnvelope: null, lowDrive: null, lowLevel: 0, lowToken: 0, lastFrameTime: 0,
   backgroundToken: 0, backgroundUrl: null, backgroundImage: null,
   backgroundCanvas: document.createElement('canvas'),
 };
@@ -128,6 +128,7 @@ async function runBpmAnalysis() {
 async function runLowEnvelopeAnalysis(file) {
   const token = ++state.lowToken;
   state.lowEnvelope = null;
+  state.lowDrive = null;
   state.lowLevel = 0;
   setStatus('lowEnvelopeStatus', '正在分析 20–130 Hz 低频包络…');
   try {
@@ -136,6 +137,7 @@ async function runLowEnvelopeAnalysis(file) {
     });
     if (token === state.lowToken) {
       state.lowEnvelope = env;
+      state.lowDrive = buildLowFrequencyDrive(env);
       setStatus('lowEnvelopeStatus', env ? '低频包络已就绪 · 100 帧/秒' : '低频包络分析已取消');
     }
   } catch {
@@ -164,6 +166,7 @@ async function selectAudio(file) {
   state.analysisToken++;
   state.lowToken++;
   state.lowEnvelope = null;
+  state.lowDrive = null;
   state.lowLevel = 0;
   setStatus('lowEnvelopeStatus', '等待音频加载…');
   state.bpm = null;
@@ -351,7 +354,8 @@ function drawBars(pointAt, beatPulse, time) {
     const width = 1.2 + depth * 5.2;
     for (const side of ['left', 'right']) {
       const method = $(side === 'left' ? 'leftEnergyMethod' : 'rightEnergyMethod').value;
-      const strength = energyByMethod(method, levels[i], beatPulse, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope));
+      const strength = energyByMethod(method, levels[i], beatPulse, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope),
+        { drive: state.lowDrive, time, index: i, count: BAR_COUNT, playing: state.audioReady && !audio.paused && !audio.ended });
       const length = Math.min(p.half * .82, p.half * (.07 + strength * .68));
       const from = p[side];
       const to = from + (side === 'left' ? length : -length);

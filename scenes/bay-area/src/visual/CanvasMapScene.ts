@@ -33,6 +33,8 @@ export class CanvasMapScene {
     lowLevel: number,
     lowReady: boolean,
     intensity: number,
+    lowDrive: Float32Array | null,
+    playing: boolean,
   ): void {
     ctx.save();
     ctx.clearRect(0, 0, width, height);
@@ -73,55 +75,100 @@ export class CanvasMapScene {
     const unit = Math.max(18, Math.min(width * .033, height * .059));
     for (const company of companies) {
       const live = clamp(features[company.frequencyBand] * company.intensity + features.onset * .12);
-      const beat = tempo ? Math.max(0, 1 - Math.abs(time - (tempo.firstBeatTime + Math.round((time - tempo.firstBeatTime) / tempo.beatInterval) * tempo.beatInterval)) / .18) : 0;
-      const target = energyByMethod(energyMethod, live, beat, Boolean(tempo), lowLevel, lowReady);
+      const beatPosition = tempo && tempo.beatInterval > 0 ? (time - tempo.firstBeatTime) / tempo.beatInterval : null;
+      const beatIndex = beatPosition === null ? 0 : Math.round(beatPosition);
+      const beatDistance = beatPosition === null ? Infinity : Math.abs(time - (tempo!.firstBeatTime + beatIndex * tempo!.beatInterval));
+      const beatWindow = tempo ? Math.min(.18, tempo.beatInterval * .36) : .18;
+      const beat = beatPosition !== null && time >= tempo!.firstBeatTime ? Math.max(0, 1 - beatDistance / beatWindow) : 0;
+      const bandIndex = ['sub', 'bass', 'lowMid', 'mid', 'high', 'air'].indexOf(company.frequencyBand);
+      const target = energyByMethod(energyMethod, live, beat, Boolean(tempo), lowLevel, lowReady,
+        { drive: lowDrive, time, index: bandIndex, count: 6, playing });
       const previous = this.energy.get(company.id) || 0;
-      const value = energyMethod === 'low-envelope' && lowReady ? target : previous + (target - previous) * company.response;
+      const value = ['low-envelope', 'low-columns', 'low-wave'].includes(energyMethod) && lowReady
+        ? target : previous + (target - previous) * company.response;
       this.energy.set(company.id, value);
-      const pulse = energyMethod === 'low-envelope' && lowReady ? lowLevel : beat;
+      const pulse = ['low-envelope', 'low-columns', 'low-wave'].includes(energyMethod) && lowReady
+        ? lowLevel : tempo ? beat : clamp(features.onset);
+      const motion = reducedMotion ? 0 : 1;
+      const hash = Array.from(company.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
       let x = company.x * width, y = company.y * height;
-      if (!reducedMotion && company.motion === 'shake') { x += Math.sin(time * 25 + company.x * 30) * value * 4; y += Math.cos(time * 29 + company.y * 20) * value * 4; }
-      if (!reducedMotion && company.motion === 'beatJump') y -= pulse * unit * .4;
-      if (!reducedMotion && company.motion === 'beatSideStep') x += Math.sin(time * 5) * pulse * unit * .35;
-      const scale = 1 + value * .12 * intensity
-        + (company.motion === 'beatGrow' ? pulse * .3 : 0)
-        + (company.motion === 'pulse' ? pulse * .1 : 0)
-        + (company.motion === 'breath' ? Math.sin(time * 1.2 + company.x * 10) * .025 : 0);
-      const radius = unit * .5 * scale;
+      if (company.motion === 'shake') {
+        x += Math.sin(time * 28 + hash) * value * unit * .24 * motion;
+        y += Math.cos(time * 34 + hash) * value * unit * .2 * motion;
+      }
+      if (company.motion === 'beatJump') y -= pulse * unit * .65 * motion;
+      if (company.motion === 'beatSideStep') {
+        const direction = beatIndex % 2 ? 1 : -1;
+        x += direction * pulse * unit * .65 * motion;
+        y -= pulse * unit * .12 * motion;
+      }
+      const breath = company.motion === 'breath' ? Math.sin(time * 1.6 + hash) * .075 * motion : 0;
+      const baseRadius = unit * .5 * (1 + value * .08 * intensity + breath);
+      const radius = baseRadius * (1
+        + (company.motion === 'pulse' ? pulse * .24 : 0)
+        + (company.motion === 'beatGrow' ? pulse * .42 : 0));
       ctx.save();
       ctx.translate(x, y);
-      if (!reducedMotion && (company.motion === 'spin' || company.motion === 'orbit')) ctx.rotate(time * (company.motion === 'spin' ? .3 : -.18));
-      if (!reducedMotion && company.motion === 'beatTilt') ctx.rotate(Math.sin(time * 4) * pulse * .4);
       ctx.shadowColor = company.color;
-      ctx.shadowBlur = 8 + value * 24 * intensity;
-      ctx.globalAlpha = .3 + value * .3;
+      ctx.shadowBlur = company.motion === 'glow' ? 14 + value * 55 * intensity : 8 + value * 24 * intensity;
+      ctx.globalAlpha = company.motion === 'glow' ? .34 + value * .5 : .3 + value * .3;
       ctx.fillStyle = company.color;
       ctx.beginPath(); ctx.arc(0, 0, radius * 1.7, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
+      if (company.motion === 'glow') {
+        ctx.strokeStyle = company.color;
+        ctx.globalAlpha = .25 + value * .65;
+        ctx.lineWidth = 2 + value * 4;
+        ctx.beginPath(); ctx.arc(0, 0, radius * (1.5 + value * .45), 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      if (company.motion === 'orbit') {
+        ctx.strokeStyle = company.color;
+        ctx.globalAlpha = .3 + value * .4;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(0, 0, radius * 1.55, 0, Math.PI * 2); ctx.stroke();
+        const angle = time * (hash % 2 ? 1.8 : -1.8) + hash;
+        const orbitRadius = radius * 1.55;
+        ctx.fillStyle = company.color;
+        ctx.beginPath(); ctx.arc(Math.cos(angle) * orbitRadius, Math.sin(angle) * orbitRadius, 2.4 + value * 2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       ctx.fillStyle = '#0d1624';
       ctx.beginPath();
-      if (company.motion === 'beatShape' && tempo && energyMethod !== 'low-envelope') {
-        const sides = [4, 6, 8, 12][Math.abs(Math.floor((time - tempo.firstBeatTime) / tempo.beatInterval)) % 4];
-        for (let side = 0; side < sides; side++) {
-          const angle = side / sides * Math.PI * 2 - Math.PI / 2;
-          if (side) ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
-          else ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      if (company.motion === 'beatShape' && beatPosition !== null) {
+        const sides = [4, 6, 8, 0][Math.max(0, Math.floor(beatPosition)) % 4];
+        if (sides) {
+          for (let side = 0; side < sides; side++) {
+            const angle = side / sides * Math.PI * 2 - Math.PI / 2;
+            if (side) ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            else ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+          }
+          ctx.closePath();
+        } else {
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
         }
-        ctx.closePath();
       } else ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = company.color;
       ctx.lineWidth = 1.2 + value * 1.6;
       ctx.stroke();
       if (company.motion === 'ripple') {
-        ctx.globalAlpha = .2 + value * .35;
-        ctx.beginPath(); ctx.arc(0, 0, radius * (1.25 + pulse * .65), 0, Math.PI * 2); ctx.stroke();
+        for (let ring = 0; ring < 2; ring++) {
+          const phase = (time * 1.7 + ring * .5) % 1;
+          ctx.globalAlpha = (.55 + value * .35) * (1 - phase);
+          ctx.lineWidth = 1.5 + value * 1.5;
+          ctx.beginPath(); ctx.arc(0, 0, radius * (1.1 + phase * 1.35), 0, Math.PI * 2); ctx.stroke();
+        }
         ctx.globalAlpha = 1;
       }
       const logo = this.logos.get(company.id);
+      ctx.save();
+      if (company.motion === 'spin') ctx.rotate(time * (hash % 2 ? 1.8 : -1.8) * motion);
+      if (company.motion === 'beatTilt') ctx.rotate((beatIndex % 2 ? 1 : -1) * pulse * .65 * motion);
       if (logo?.complete && logo.naturalWidth) {
-        const contentSize = radius * 1.43 * (company.logoScale || 1) * (company.motion === 'beatLogoGrow' ? 1 + pulse * .46 : 1);
+        const logoRadius = company.motion === 'beatGrow' ? baseRadius : radius;
+        const contentSize = logoRadius * 1.43 * (company.logoScale || 1) * (company.motion === 'beatLogoGrow' ? 1 + pulse * .68 : 1);
         const imageScale = Math.min(contentSize / logo.naturalWidth, contentSize / logo.naturalHeight);
         const imageWidth = logo.naturalWidth * imageScale;
         const imageHeight = logo.naturalHeight * imageScale;
@@ -132,6 +179,7 @@ export class CanvasMapScene {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(company.fallbackLabel, 0, 1);
       }
+      ctx.restore();
       ctx.restore();
     }
     this.particles.render(ctx, width, height, companies, features, deltaMs, time * 1000, reducedMotion, false);

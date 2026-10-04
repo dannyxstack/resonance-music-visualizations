@@ -23,8 +23,9 @@
           <label class="setting" for="dotSize">陆地点大小 <output id="dotSizeValue">100%</output></label><input id="dotSize" type="range" min="50" max="170" value="100" />
         </section>
         <section class="control-group"><h3>02 / 赤道频谱</h3>
-          <p class="hint">24 根柱：低→高→低镜像排列；上下对称，最高抵达南北纬 30°。</p>
-          <label class="setting" for="energyMethod">柱状带能量方法</label><select id="energyMethod"></select>
+          <p class="hint">24 根柱：低→高→低镜像排列；南北两侧独立跳动，最高抵达南北纬 30°。</p>
+          <label class="setting" for="northEnergyMethod">北侧柱状带能量方法</label><select id="northEnergyMethod"></select>
+          <label class="setting" for="southEnergyMethod">南侧柱状带能量方法</label><select id="southEnergyMethod"></select>
           <label class="setting" for="sensitivity">频谱响应 <output id="sensitivityValue">100%</output></label><input id="sensitivity" type="range" min="40" max="200" value="100" />
           <p id="lowEnvelopeStatus" class="hint" role="status" aria-live="polite">选择音乐后分析低频包络</p>
         </section>

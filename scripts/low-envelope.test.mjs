@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeLowFrequencyEnvelope, updateLowFrequencyLevel } from '../public/visualizers/shared/low-envelope.js';
+import { analyzeLowFrequencyEnvelope, buildLowFrequencyDrive, sampleLowFrequencyDrive, updateLowFrequencyLevel } from '../public/visualizers/shared/low-envelope.js';
 
 function bufferFor(frequency, amplitude = 0.8, seconds = 0.6) {
   const sampleRate = 44100;
@@ -14,6 +14,18 @@ test('whole-track low envelope responds to bass and rejects high frequencies', a
   const high = await analyzeLowFrequencyEnvelope(bufferFor(1000));
   assert.ok(bass[30] > 0.5);
   assert.ok(high[30] < 0.15);
+});
+
+test('precomputed drive is sampled consistently when rendering out of order', () => {
+  const env = new Float32Array(100);
+  env[50] = .95;
+  const drive = buildLowFrequencyDrive(env);
+  const peak = sampleLowFrequencyDrive(drive, .5);
+  assert.ok(peak > .9);
+  assert.equal(sampleLowFrequencyDrive(drive, -.01), 0);
+  assert.equal(sampleLowFrequencyDrive(drive, .48), 0);
+  sampleLowFrequencyDrive(drive, .8);
+  assert.equal(sampleLowFrequencyDrive(drive, .5), peak);
 });
 
 test('playback follower uses centered samples and linear fall without small upward jitter', () => {

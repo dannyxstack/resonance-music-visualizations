@@ -1,6 +1,6 @@
 import { loadLocalAudio, audioErrorMessage } from '../perth/local-audio.js';
 import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from '../shared/analysis.js';
-import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from '../shared/low-envelope.js';
+import { analyzeLowFrequencyFile, buildLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
 
@@ -16,7 +16,7 @@ const fonts = {
   mono: '"Consolas", "Microsoft YaHei", monospace',
   round: '"Trebuchet MS", "Microsoft YaHei", sans-serif',
 };
-const state = { logoMode: 'color', logoUrl: null, backgroundUrl: null, audioUrl: null, audioSelection: null, audioFile: null, audioReady: false, pending: false, context: null, analyser: null, spectrum: null, bpm: null, analysisToken: 0, lowEnvelope: null, lowLevel: 0, lowToken: 0, image: new Image(), bgCache: document.createElement('canvas'), frame: 0, bass: 0, mid: 0, treble: 0, time: 0, rain: [] };
+const state = { logoMode: 'color', logoUrl: null, backgroundUrl: null, audioUrl: null, audioSelection: null, audioFile: null, audioReady: false, pending: false, context: null, analyser: null, spectrum: null, bpm: null, analysisToken: 0, lowEnvelope: null, lowDrive: null, lowLevel: 0, lowToken: 0, image: new Image(), bgCache: document.createElement('canvas'), frame: 0, bass: 0, mid: 0, treble: 0, time: 0, rain: [] };
 
 let savedMethods = {};
 try {
@@ -134,6 +134,7 @@ async function runBpmAnalysis() {
 async function runLowEnvelopeAnalysis(file) {
   const token = ++state.lowToken;
   state.lowEnvelope = null;
+  state.lowDrive = null;
   state.lowLevel = 0;
   $('lowEnvelopeStatus').textContent = '正在分析 20–130 Hz 低频包络…';
   try {
@@ -142,6 +143,7 @@ async function runLowEnvelopeAnalysis(file) {
     });
     if (token === state.lowToken) {
       state.lowEnvelope = env;
+      state.lowDrive = buildLowFrequencyDrive(env);
       $('lowEnvelopeStatus').textContent = env ? '低频包络已就绪 · 100 帧/秒' : '低频包络分析已取消';
     }
   } catch {
@@ -153,6 +155,7 @@ async function selectAudio(file) {
   state.analysisToken++;
   state.lowToken++;
   state.lowEnvelope = null;
+  state.lowDrive = null;
   state.lowLevel = 0;
   $('lowEnvelopeStatus').textContent = '等待音频加载…';
   state.bpm = null;
@@ -305,7 +308,8 @@ function makeSpectrum(now, time) {
     const x = 300 + Math.cos(angle) * radius, y = 300 + Math.sin(angle) * radius;
     outline += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `;
     if (i === count || i % 2) continue;
-    const barEnergy = energyByMethod($('barsEnergyMethod').value, energyAt, beat, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope));
+    const barEnergy = energyByMethod($('barsEnergyMethod').value, energyAt, beat, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope),
+      { drive: state.lowDrive, time, index: i / 2, count: count / 2, playing: active, circular: true });
     const length = 7 + Math.max(0, barEnergy * 58 - 3) * sensitivity;
     const bx = 300 + Math.cos(angle) * (radius + 3), by = 300 + Math.sin(angle) * (radius + 3);
     const ex = 300 + Math.cos(angle) * (radius + length), ey = 300 + Math.sin(angle) * (radius + length);

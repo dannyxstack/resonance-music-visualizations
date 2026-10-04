@@ -1,6 +1,6 @@
 import { loadLocalAudio, audioErrorMessage } from '../perth/local-audio.js';
 import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from '../shared/analysis.js';
-import { analyzeLowFrequencyEnvelope, updateLowFrequencyLevel } from '../shared/low-envelope.js';
+import { analyzeLowFrequencyEnvelope, buildLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
 import { BAR_BANDS, latitudeForLevel } from './spectrum-layout.js';
@@ -16,7 +16,7 @@ const TILT = 12 * RAD;
 const SIN_TILT = Math.sin(TILT);
 const COS_TILT = Math.cos(TILT);
 const TAU = Math.PI * 2;
-const levels = new Float32Array(12);
+const levels = { north: new Float32Array(12), south: new Float32Array(12) };
 const minCityGdp = Math.min(...CITY_GDP.map(city => city.gdp));
 const maxCityGdp = Math.max(...CITY_GDP.map(city => city.gdp));
 const cityPositions = CITY_GDP.map(city => {
@@ -28,13 +28,14 @@ const state = {
   width: 1, height: 1, dpr: 1, analyser: null, spectrum: null, context: null,
   audioReady: false, pending: false, audioFile: null, audioUrl: null, selection: null,
   selectionToken: 0, bpmToken: 0, lowToken: 0, bpm: null, decoded: null,
-  lowEnvelope: null, lowLevel: 0, land: new Float32Array(0), stars: [],
+  lowEnvelope: null, lowDrive: null, lowLevel: 0, land: new Float32Array(0), stars: [],
   lastFrame: performance.now(),
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem('resonance:earth-spin') || '{}'); } catch { return {}; } })();
 fillMethodSelect($('bpmMethod'), BPM_METHODS, saved.bpmMethod || 'beat-grid');
-fillMethodSelect($('energyMethod'), ENERGY_METHODS, saved.energyMethod || 'mix');
+fillMethodSelect($('northEnergyMethod'), ENERGY_METHODS, saved.northEnergyMethod || saved.energyMethod || 'mix');
+fillMethodSelect($('southEnergyMethod'), ENERGY_METHODS, saved.southEnergyMethod || saved.energyMethod || 'mix');
 fillMethodSelect($('cityEnergyMethod'), CITY_ENERGY_METHODS, saved.cityEnergyMethod || 'beat');
 fillMethodSelect($('cityLightColor'), CITY_LIGHT_COLORS, saved.cityLightColor || 'amber');
 for (const id of ['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'sensitivity', 'volume']) {
@@ -50,7 +51,7 @@ function formatTime(seconds) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 }
 function saveSettings() {
-  const settings = Object.fromEntries(['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'sensitivity', 'volume', 'bpmMethod', 'energyMethod', 'cityEnergyMethod', 'cityLightColor'].map(id => [id, $(id).value]));
+  const settings = Object.fromEntries(['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'sensitivity', 'volume', 'bpmMethod', 'northEnergyMethod', 'southEnergyMethod', 'cityEnergyMethod', 'cityLightColor'].map(id => [id, $(id).value]));
   try { localStorage.setItem('resonance:earth-spin', JSON.stringify(settings)); } catch {}
 }
 function syncSettings() {
@@ -143,6 +144,7 @@ async function runBpmAnalysis(buffer, token) {
 async function runLowAnalysis(buffer, token) {
   const lowToken = ++state.lowToken;
   state.lowEnvelope = null;
+  state.lowDrive = null;
   state.lowLevel = 0;
   setStatus('lowEnvelopeStatus', '正在分析 20–130 Hz 低频包络…');
   try {
@@ -151,6 +153,7 @@ async function runLowAnalysis(buffer, token) {
       progress => { if (token === state.selectionToken && lowToken === state.lowToken) setStatus('lowEnvelopeStatus', `低频包络分析中… ${Math.round(progress * 100)}%`); });
     if (token !== state.selectionToken || lowToken !== state.lowToken) return;
     state.lowEnvelope = envelope;
+    state.lowDrive = buildLowFrequencyDrive(envelope);
     setStatus('lowEnvelopeStatus', envelope ? '低频包络已就绪 · 100 帧/秒' : '低频包络分析已取消');
   } catch {
     if (token === state.selectionToken && lowToken === state.lowToken) setStatus('lowEnvelopeStatus', '低频包络分析失败，使用实时频谱');
@@ -188,8 +191,10 @@ async function selectAudio(file) {
   state.decoded = null;
   state.bpm = null;
   state.lowEnvelope = null;
+  state.lowDrive = null;
   state.lowLevel = 0;
-  levels.fill(0);
+  levels.north.fill(0);
+  levels.south.fill(0);
   audio.pause(); audio.removeAttribute('src'); audio.load();
   $('trackName').textContent = file.name;
   $('trackName').title = file.name;
@@ -288,13 +293,14 @@ function drawEquator(cx, cy, radius, sinRotation, cosRotation, front) {
   ctx.lineWidth = front ? 1.7 : 1;
   ctx.stroke();
 }
-function drawBar(index, value, cx, cy, radius, sinRotation, cosRotation, front) {
+function drawBar(index, value, hemisphere, cx, cy, radius, sinRotation, cosRotation, front) {
   const longitude = index / 24 * TAU;
   const extent = latitudeForLevel(value) * RAD;
+  const direction = hemisphere === 'north' ? 1 : -1;
   ctx.beginPath();
   let drawing = false;
-  for (let sample = 0; sample <= 20; sample++) {
-    const latitude = -extent + sample / 20 * extent * 2;
+  for (let sample = 0; sample <= 10; sample++) {
+    const latitude = direction * sample / 10 * extent;
     const point = projectLatLon(latitude, longitude, sinRotation, cosRotation, cx, cy, radius * 1.009);
     const visible = front ? point.depth > 0.008 : point.depth <= 0.008;
     if (!visible) { drawing = false; continue; }
@@ -360,7 +366,6 @@ function drawCityLights(cx, cy, radius, sinRotation, cosRotation, motion) {
 }
 function readSpectrum(dt, time) {
   const playing = state.audioReady && !audio.paused && !audio.ended;
-  const method = $('energyMethod').value;
   const beat = beatEnergyAt(state.bpm, time);
   state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, time, playing, dt, state.lowLevel);
   if (playing && state.analyser) state.analyser.getFloatFrequencyData(state.spectrum);
@@ -380,11 +385,15 @@ function readSpectrum(dt, time) {
       live = Math.pow(clamp((peak + 85) / 65), 1.5);
     }
     liveTotal += live;
-    const target = playing ? energyByMethod(method, clamp(live * sensitivity), beat, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope)) : 0;
-    if (method === 'low-envelope' && state.lowEnvelope) levels[band] = target;
-    else {
-      const response = target > levels[band] ? 17 : 4;
-      levels[band] += (target - levels[band]) * (1 - Math.exp(-response * dt));
+    for (const hemisphere of ['north', 'south']) {
+      const method = $(`${hemisphere}EnergyMethod`).value;
+      const target = playing ? energyByMethod(method, clamp(live * sensitivity), beat, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope),
+        { drive: state.lowDrive, time, index: band, count: 12, playing }) : 0;
+      if (['low-envelope', 'low-columns', 'low-wave'].includes(method) && state.lowEnvelope) levels[hemisphere][band] = target;
+      else {
+        const response = target > levels[hemisphere][band] ? 17 : 4;
+        levels[hemisphere][band] += (target - levels[hemisphere][band]) * (1 - Math.exp(-response * dt));
+      }
     }
   }
   const live = clamp(liveTotal / 12 * sensitivity);
@@ -414,10 +423,16 @@ function renderScene(time, delta = 1 / 60) {
   ctx.strokeStyle = 'rgba(211,246,255,.8)'; ctx.lineWidth = 1.3; ctx.stroke();
   ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, radius - 1, 0, TAU); ctx.clip();
   drawEquator(cx, cy, radius, sinRotation, cosRotation, false);
-  for (let i = 0; i < 24; i++) drawBar(i, levels[BAR_BANDS[i]], cx, cy, radius, sinRotation, cosRotation, false);
+  for (let i = 0; i < 24; i++) {
+    drawBar(i, levels.north[BAR_BANDS[i]], 'north', cx, cy, radius, sinRotation, cosRotation, false);
+    drawBar(i, levels.south[BAR_BANDS[i]], 'south', cx, cy, radius, sinRotation, cosRotation, false);
+  }
   drawLand(cx, cy, radius, sinRotation, cosRotation);
   drawEquator(cx, cy, radius, sinRotation, cosRotation, true);
-  for (let i = 0; i < 24; i++) drawBar(i, levels[BAR_BANDS[i]], cx, cy, radius, sinRotation, cosRotation, true);
+  for (let i = 0; i < 24; i++) {
+    drawBar(i, levels.north[BAR_BANDS[i]], 'north', cx, cy, radius, sinRotation, cosRotation, true);
+    drawBar(i, levels.south[BAR_BANDS[i]], 'south', cx, cy, radius, sinRotation, cosRotation, true);
+  }
   drawCityLights(cx, cy, radius, sinRotation, cosRotation, cityMotion);
   ctx.restore();
 }
@@ -434,7 +449,7 @@ $('playButton').addEventListener('click', () => { if (!state.audioReady) return;
 $('seek').addEventListener('input', () => { if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Number($('seek').value) / 1000 * audio.duration; });
 $('reanalyzeBpm').addEventListener('click', () => { if (state.decoded) void runBpmAnalysis(state.decoded, state.selectionToken); });
 $('bpmMethod').addEventListener('change', () => { saveSettings(); if (state.decoded) setStatus('bpmStatus', '已切换方法，点击重新分析 BPM'); });
-$('energyMethod').addEventListener('change', saveSettings);
+for (const hemisphere of ['north', 'south']) $(`${hemisphere}EnergyMethod`).addEventListener('change', saveSettings);
 $('cityEnergyMethod').addEventListener('change', saveSettings);
 $('cityLightColor').addEventListener('change', saveSettings);
 for (const id of ['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'sensitivity', 'volume']) $(id).addEventListener('input', syncSettings);

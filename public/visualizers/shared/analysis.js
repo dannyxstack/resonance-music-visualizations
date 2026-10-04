@@ -1,5 +1,6 @@
 import { analyzeBpm } from '../neon-spectrum/bpm-analysis.js';
 import { analyzeBeatGrid } from '../space-odyssey/beat-analysis.js';
+import { sampleLowFrequencyDrive } from './low-envelope.js';
 
 export const BPM_METHODS = Object.freeze([
   { value: 'beat-grid', label: '多频段节拍追踪（推荐）' },
@@ -14,6 +15,8 @@ export const ENERGY_METHODS = Object.freeze([
   { value: 'live-low', label: '实时 50% + vizzy低频 50%' },
   { value: 'beat-low', label: '节拍 50% + vizzy低频 50%' },
   { value: 'low-envelope', label: 'vizzy低频' },
+  { value: 'low-columns', label: 'vizzy低频·分柱' },
+  { value: 'low-wave', label: 'vizzy低频·波纹' },
 ]);
 
 export function fillMethodSelect(select, methods, preferred) {
@@ -42,10 +45,23 @@ export function beatEnergyAt(result, time) {
   return Math.min(1, beat.strength * Math.exp(-(time - beat.time) / .14));
 }
 
-export function energyByMethod(method, live, beat, hasAnalysis, lowEnvelope = 0, hasLowEnvelope = false) {
+export function energyByMethod(method, live, beat, hasAnalysis, lowEnvelope = 0, hasLowEnvelope = false, column = {}) {
   const normalizedLive = Math.max(0, Math.min(1, live));
   const normalizedBeat = hasAnalysis ? Math.max(0, Math.min(1, beat)) : normalizedLive;
   const normalizedLow = hasLowEnvelope ? Math.max(0, Math.min(1, lowEnvelope)) : normalizedLive;
+  if (method === 'low-columns') return hasLowEnvelope ? normalizedLow * (0.35 + 0.65 * normalizedLive) : normalizedLive;
+  if (method === 'low-wave') {
+    if (!hasLowEnvelope || !column.drive) return normalizedLive;
+    if (column.playing === false) return 0;
+    const count = Math.max(1, Math.floor(column.count || 1));
+    const spacing = Math.min(12, count);
+    const position = ((Math.floor(column.index || 0) % spacing) + spacing) % spacing;
+    const distance = count <= 12 && !column.circular ? position : Math.min(position, spacing - position);
+    const wave = distance <= 5
+      ? sampleLowFrequencyDrive(column.drive, (column.time || 0) - distance * 0.04) * 0.82 ** distance
+      : 0;
+    return distance <= 5 ? wave : normalizedLive * 0.25;
+  }
   if (method === 'low-envelope') return normalizedLow;
   if (method === 'beat') return normalizedBeat;
   if (method === 'mix') return (normalizedLive + normalizedBeat) / 2;

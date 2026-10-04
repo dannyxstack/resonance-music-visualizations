@@ -5,7 +5,7 @@ import type { TempoAnalysis } from '../types/tempo';
 import { useAnimationFrame } from '../hooks/useAnimationFrame';
 import { CanvasMapScene } from '../visual/CanvasMapScene';
 import { setCanvasSize } from '../visual/VisualEngine';
-import { updateLowFrequencyLevel } from '../../../../public/visualizers/shared/low-envelope.js';
+import { buildLowFrequencyDrive, updateLowFrequencyLevel } from '../../../../public/visualizers/shared/low-envelope.js';
 import { registerScene } from '../../../../public/visualizers/shared/scene.js';
 
 interface VisualizationProps {
@@ -26,6 +26,7 @@ export function Visualization({
 }: VisualizationProps): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const scene = useMemo(() => new CanvasMapScene(), []);
+  const lowDrive = useMemo(() => buildLowFrequencyDrive(lowEnvelope), [lowEnvelope]);
   const lowLevelRef = useRef(0);
   const fpsRef = useRef(60);
   const onNodeLayoutRef = useRef(onNodeLayout);
@@ -59,7 +60,8 @@ export function Visualization({
     lowLevelRef.current = updateLowFrequencyLevel(lowEnvelope, time,
       !audioElement.paused && !audioElement.ended, Math.min(.1, deltaMs / 1000), lowLevelRef.current);
     scene.render(ctx, width, height, featuresRef.current, tempo, time, deltaMs,
-      reducedMotion, energyMethod, lowLevelRef.current, Boolean(lowEnvelope), masterIntensity);
+      reducedMotion, energyMethod, lowLevelRef.current, Boolean(lowEnvelope), masterIntensity,
+      lowDrive, !audioElement.paused && !audioElement.ended);
     const instantFps = 1000 / Math.max(1, deltaMs);
     fpsRef.current += (instantFps - fpsRef.current) * .05;
     onMetrics(fpsRef.current, scene.particles.count);

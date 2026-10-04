@@ -143,6 +143,28 @@ export function updateLowFrequencyLevel(env, time, playing, dt, level) {
   return target;
 }
 
+// Bake the playback follower at 100 fps so delayed columns are deterministic
+// when seeking or rendering frames out of order.
+export function buildLowFrequencyDrive(env) {
+  if (!env) return null;
+  const drive = new Float32Array(env.length);
+  let level = 0;
+  for (let frame = 0; frame < drive.length; frame++) {
+    level = updateLowFrequencyLevel(env, frame / FRAME_RATE, true, 1 / FRAME_RATE, level);
+    drive[frame] = level;
+  }
+  return drive;
+}
+
+export function sampleLowFrequencyDrive(drive, time) {
+  if (!drive || !Number.isFinite(time) || time < 0) return 0;
+  const position = time * FRAME_RATE;
+  const index = Math.floor(position);
+  if (index >= drive.length) return 0;
+  const fraction = position - index;
+  return drive[index] * (1 - fraction) + (drive[index + 1] ?? drive[index]) * fraction;
+}
+
 export async function analyzeLowFrequencyFile(file, shouldCancel = () => false, onProgress = () => {}) {
   let context;
   try {

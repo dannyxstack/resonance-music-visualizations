@@ -1,6 +1,6 @@
 import { loadLocalAudio, audioErrorMessage } from "./local-audio.js";
 import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEnergyAt, energyByMethod, firstBeatOffset } from "../shared/analysis.js";
-import { analyzeLowFrequencyFile, updateLowFrequencyLevel } from "../shared/low-envelope.js";
+import { analyzeLowFrequencyFile, buildLowFrequencyDrive, updateLowFrequencyLevel } from "../shared/low-envelope.js";
 import { registerScene } from "../shared/scene.js";
 import { bindAnalysisSummary, bindPreviewFullscreen } from "../shared/workspace.js";
 
@@ -44,6 +44,7 @@ const meterMethodInputs = Object.fromEntries(['bass', 'mid', 'treble'].map(band 
 const sceneEnergyMethodInput = document.querySelector('#sceneEnergyMethod');
 const lowEnvelopeStatus = document.querySelector('#lowEnvelopeStatus');
 let lowEnvelope = null;
+let lowDrive = null;
 let lowLevel = 0;
 let lowToken = 0;
 let commonBpm = null;
@@ -100,6 +101,7 @@ async function runCommonBpmAnalysis(file, selection) {
 async function runLowEnvelopeAnalysis(file, selection) {
   const token = ++lowToken;
   lowEnvelope = null;
+  lowDrive = null;
   lowLevel = 0;
   lowEnvelopeStatus.textContent = '正在分析 20–130 Hz 低频包络…';
   try {
@@ -108,6 +110,7 @@ async function runLowEnvelopeAnalysis(file, selection) {
     });
     if (token === lowToken && selection === audioSelection) {
       lowEnvelope = env;
+      lowDrive = buildLowFrequencyDrive(env);
       lowEnvelopeStatus.textContent = env ? '低频包络已就绪 · 100 帧/秒' : '低频包络分析已取消';
     }
   } catch {
@@ -897,15 +900,17 @@ function analyzeAudio(time = audio.currentTime) {
   const incoming = 1 - smoothing;
   const beat = isPlaying ? beatEnergyAt(commonBpm, time) : 0;
 
-  for (const band of ["bass", "mid", "treble"]) {
+  for (const [index, band] of ["bass", "mid", "treble"].entries()) {
     smoothed[band] = smoothed[band] * smoothing + raw[band] * incoming;
-    const meterEnergy = energyByMethod(meterMethodInputs[band].value, smoothed[band], beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope));
+    const meterEnergy = energyByMethod(meterMethodInputs[band].value, smoothed[band], beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope),
+      { drive: lowDrive, time, index, count: 3, playing: isPlaying });
     meterEls[band].style.setProperty("--level", meterEnergy.toFixed(3));
   }
 
   const sceneMethod = sceneEnergyMethodInput.value;
-  const sceneEnergy = Object.fromEntries(['bass', 'mid', 'treble'].map(band => [band,
-    energyByMethod(sceneMethod, smoothed[band], beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope))]));
+  const sceneEnergy = Object.fromEntries(['bass', 'mid', 'treble'].map((band, index) => [band,
+    energyByMethod(sceneMethod, smoothed[band], beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope),
+      { drive: lowDrive, time, index, count: 3, playing: isPlaying })]));
   return {
     ...sceneEnergy,
     onset: raw.onset || { bass: 0, mid: 0, treble: 0, global: 0 },
@@ -1534,6 +1539,7 @@ fileInput.addEventListener("change", async () => {
   commonBpmToken++;
   lowToken++;
   lowEnvelope = null;
+  lowDrive = null;
   lowLevel = 0;
   lowEnvelopeStatus.textContent = '等待音频加载…';
   commonBpm = null;
