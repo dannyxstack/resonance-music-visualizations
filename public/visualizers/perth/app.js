@@ -3,6 +3,7 @@ import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEne
 import { analyzeLowFrequencyFile, buildLowFrequencyDrive, updateLowFrequencyLevel } from "../shared/low-envelope.js";
 import { registerScene } from "../shared/scene.js";
 import { bindAnalysisSummary, bindPreviewFullscreen } from "../shared/workspace.js";
+import { activeMeteors } from "./meteors.js";
 
 const canvas = document.querySelector("#scene");
 const ctx = canvas.getContext("2d");
@@ -27,6 +28,9 @@ const starCountInput = document.querySelector("#starCount");
 const starCountValue = document.querySelector("#starCountValue");
 const starSpeedInput = document.querySelector("#starSpeed");
 const starSpeedValue = document.querySelector("#starSpeedValue");
+const meteorsEnabledInput = document.querySelector("#meteorsEnabled");
+const meteorIntervalInput = document.querySelector("#meteorInterval");
+const meteorIntervalValue = document.querySelector("#meteorIntervalValue");
 const vizzySensitivityInput = document.querySelector("#vizzySensitivity");
 const vizzyBandsInput = document.querySelector("#vizzyBands");
 const skyTitleEnabledInput = document.querySelector("#skyTitleEnabled");
@@ -136,6 +140,7 @@ let isPlaying = false;
 let lightningBand = "treble";
 let buildings = [];
 let stars = [];
+let meteorClock = 0;
 let bolts = [];
 let flash = 0;
 let lastTime = performance.now();
@@ -755,6 +760,14 @@ function updateStarControlLabels() {
   starSpeedValue.textContent = `${getStarSpeed().toFixed(1)}x`;
 }
 
+function getMeteorInterval() {
+  return Math.max(2, Number(meteorIntervalInput.value) || 6);
+}
+
+function updateMeteorIntervalLabel() {
+  meteorIntervalValue.textContent = `about every ${getMeteorInterval()}s`;
+}
+
 function syncStarCount() {
   const count = getStarCount();
 
@@ -994,6 +1007,39 @@ function drawStars(dt) {
     }
   }
 
+  ctx.restore();
+}
+
+function drawMeteors() {
+  if (!meteorsEnabledInput.checked) return;
+
+  const meteors = activeMeteors(meteorClock, getMeteorInterval(), sceneWidth, getStarSkyBounds());
+  if (!meteors.length) return;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const meteor of meteors) {
+    const trail = ctx.createLinearGradient(meteor.tailX, meteor.tailY, meteor.x, meteor.y);
+    trail.addColorStop(0, "rgba(126, 193, 255, 0)");
+    trail.addColorStop(0.65, "rgba(174, 217, 255, 0.52)");
+    trail.addColorStop(1, "rgba(255, 255, 255, 1)");
+
+    ctx.globalAlpha = meteor.alpha;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = trail;
+    ctx.lineWidth = meteor.width;
+    ctx.shadowColor = "#96ceff";
+    ctx.shadowBlur = 13;
+    ctx.beginPath();
+    ctx.moveTo(meteor.tailX, meteor.tailY);
+    ctx.lineTo(meteor.x, meteor.y);
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(meteor.x, meteor.y, meteor.width * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -1462,6 +1508,7 @@ function drawIdleWave() {
 }
 
 function renderScene(time, dt) {
+  meteorClock += Math.max(0, dt);
   lowLevel = updateLowFrequencyLevel(lowEnvelope, time, isPlaying && !audio.ended, dt, lowLevel);
 
   const energy = analyzeAudio(time);
@@ -1473,6 +1520,7 @@ function renderScene(time, dt) {
   drawBackground(energy);
   drawSkyline(energy);
   drawStars(dt);
+  drawMeteors();
   drawSkyTitle(dt);
   drawLightning(dt);
   drawFlashOverlay();
@@ -1678,6 +1726,7 @@ starCountInput.addEventListener("input", () => {
 });
 
 starSpeedInput.addEventListener("input", updateStarControlLabels);
+meteorIntervalInput.addEventListener("input", updateMeteorIntervalLabel);
 
 vizzyBandsInput.addEventListener("input", () => {
   vizzyState = createVizzyState(0);
@@ -1752,6 +1801,7 @@ for (const input of bandInputs) {
 window.addEventListener("resize", resize);
 updateLightningFrequencyLabel();
 updateStarControlLabels();
+updateMeteorIntervalLabel();
 setAnalysisMode("classic");
 setAdvancedCollapsed(false);
 resize();

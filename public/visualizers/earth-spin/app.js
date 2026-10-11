@@ -3,7 +3,8 @@ import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEne
 import { analyzeLowFrequencyEnvelope, buildLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
-import { BAR_BANDS, latitudeForLevel } from './spectrum-layout.js';
+import { BAR_BANDS, HALO_BAR_COUNT, HALO_BAND_COUNT, haloBandAt, latitudeForLevel } from './spectrum-layout.js';
+import { recedingStar } from './star-motion.js';
 import { CITY_GDP, CITY_ENERGY_METHODS, CITY_LIGHT_COLORS, cityEnergyForMethod, cityLightValue, cityLightRadius } from './city-lights.js';
 
 const $ = id => document.getElementById(id);
@@ -16,7 +17,7 @@ const TILT = 12 * RAD;
 const SIN_TILT = Math.sin(TILT);
 const COS_TILT = Math.cos(TILT);
 const TAU = Math.PI * 2;
-const levels = { north: new Float32Array(12), south: new Float32Array(12) };
+const levels = { north: new Float32Array(12), south: new Float32Array(12), halo: new Float32Array(HALO_BAND_COUNT) };
 const minCityGdp = Math.min(...CITY_GDP.map(city => city.gdp));
 const maxCityGdp = Math.max(...CITY_GDP.map(city => city.gdp));
 const cityPositions = CITY_GDP.map(city => {
@@ -28,7 +29,7 @@ const state = {
   width: 1, height: 1, dpr: 1, analyser: null, spectrum: null, context: null,
   audioReady: false, pending: false, audioFile: null, audioUrl: null, selection: null,
   selectionToken: 0, bpmToken: 0, lowToken: 0, bpm: null, decoded: null,
-  lowEnvelope: null, lowDrive: null, lowLevel: 0, land: new Float32Array(0), stars: [],
+  lowEnvelope: null, lowDrive: null, lowLevel: 0, land: new Float32Array(0),
   lastFrame: performance.now(),
 };
 
@@ -36,9 +37,10 @@ const saved = (() => { try { return JSON.parse(localStorage.getItem('resonance:e
 fillMethodSelect($('bpmMethod'), BPM_METHODS, saved.bpmMethod || 'beat-grid');
 fillMethodSelect($('northEnergyMethod'), ENERGY_METHODS, saved.northEnergyMethod || saved.energyMethod || 'mix');
 fillMethodSelect($('southEnergyMethod'), ENERGY_METHODS, saved.southEnergyMethod || saved.energyMethod || 'mix');
+fillMethodSelect($('haloEnergyMethod'), ENERGY_METHODS, saved.haloEnergyMethod || 'live');
 fillMethodSelect($('cityEnergyMethod'), CITY_ENERGY_METHODS, saved.cityEnergyMethod || 'beat');
 fillMethodSelect($('cityLightColor'), CITY_LIGHT_COLORS, saved.cityLightColor || 'amber');
-for (const id of ['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'sensitivity', 'volume']) {
+for (const id of ['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'haloHeight', 'sensitivity', 'volume']) {
   if (Number.isFinite(Number(saved[id])) && saved[id] !== undefined) {
     const input = $(id);
     input.value = String(Math.min(Number(input.max), Math.max(Number(input.min), Number(saved[id]))));
@@ -51,7 +53,7 @@ function formatTime(seconds) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 }
 function saveSettings() {
-  const settings = Object.fromEntries(['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'sensitivity', 'volume', 'bpmMethod', 'northEnergyMethod', 'southEnergyMethod', 'cityEnergyMethod', 'cityLightColor'].map(id => [id, $(id).value]));
+  const settings = Object.fromEntries(['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'haloHeight', 'sensitivity', 'volume', 'bpmMethod', 'northEnergyMethod', 'southEnergyMethod', 'haloEnergyMethod', 'cityEnergyMethod', 'cityLightColor'].map(id => [id, $(id).value]));
   try { localStorage.setItem('resonance:earth-spin', JSON.stringify(settings)); } catch {}
 }
 function syncSettings() {
@@ -61,6 +63,7 @@ function syncSettings() {
   $('dotSizeValue').textContent = `${$('dotSize').value}%`;
   $('cityBaseSizeValue').textContent = `${$('cityBaseSize').value} px`;
   $('cityPulseSizeValue').textContent = `${$('cityPulseSize').value} px`;
+  $('haloHeightValue').textContent = `${$('haloHeight').value}%`;
   $('sensitivityValue').textContent = `${$('sensitivity').value}%`;
   $('volumeValue').textContent = `${$('volume').value}%`;
   audio.volume = Number($('volume').value) / 100;
@@ -195,6 +198,7 @@ async function selectAudio(file) {
   state.lowLevel = 0;
   levels.north.fill(0);
   levels.south.fill(0);
+  levels.halo.fill(0);
   audio.pause(); audio.removeAttribute('src'); audio.load();
   $('trackName').textContent = file.name;
   $('trackName').title = file.name;
@@ -221,12 +225,6 @@ async function selectAudio(file) {
   }
 }
 
-function makeStars() {
-  let seed = 0x9e3779b9;
-  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  state.stars = Array.from({ length: 260 }, () => ({ x: random(), y: random(), radius: 0.35 + random() * 1.5,
-    alpha: 0.25 + random() * 0.7, phase: random() * TAU, speed: 0.35 + random() * 1.15 }));
-}
 async function loadLandDots() {
   try {
     const response = await fetch(new URL('./land-dots.json', import.meta.url));
@@ -269,15 +267,44 @@ function projectLatLon(latitude, longitude, sinRotation, cosRotation, cx, cy, ra
 function drawStars(width, height, time) {
   const count = Number($('starCount').value);
   for (let i = 0; i < count; i++) {
-    const star = state.stars[i];
-    const alpha = star.alpha * (0.72 + 0.28 * Math.sin(time * star.speed + star.phase));
-    ctx.fillStyle = `rgba(185,224,255,${alpha})`;
-    ctx.beginPath(); ctx.arc(star.x * width, star.y * height, star.radius, 0, TAU); ctx.fill();
-    if (star.radius > 1.4) {
-      ctx.fillStyle = `rgba(120,190,255,${alpha * 0.12})`;
-      ctx.beginPath(); ctx.arc(star.x * width, star.y * height, star.radius * 4, 0, TAU); ctx.fill();
+    const star = recedingStar(i, time, width, height);
+    ctx.fillStyle = `rgba(185,224,255,${star.alpha})`;
+    ctx.beginPath(); ctx.arc(star.x, star.y, star.radius, 0, TAU); ctx.fill();
+    if (star.radius > 1.35) {
+      ctx.fillStyle = `rgba(120,190,255,${star.alpha * 0.12})`;
+      ctx.beginPath(); ctx.arc(star.x, star.y, star.radius * 4, 0, TAU); ctx.fill();
     }
   }
+}
+function drawSpectrumHalo(cx, cy, radius, time) {
+  const baseRadius = radius * 1.105;
+  const maxHeight = Number($('haloHeight').value) / 100;
+  const rotation = -Math.PI / 2 + time * 0.035;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, baseRadius, 0, TAU);
+  ctx.strokeStyle = 'rgba(106,224,255,.24)';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#69cfff';
+  ctx.shadowBlur = 15;
+  ctx.stroke();
+  ctx.lineCap = 'round';
+  for (let index = 0; index < HALO_BAR_COUNT; index++) {
+    const band = haloBandAt(index);
+    const value = levels.halo[band];
+    const angle = rotation + index / HALO_BAR_COUNT * TAU;
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    const tipRadius = baseRadius + radius * (.018 + value * maxHeight);
+    const hue = 185 + band / (HALO_BAND_COUNT - 1) * 110;
+    ctx.beginPath();
+    ctx.moveTo(cx + dx * baseRadius, cy + dy * baseRadius);
+    ctx.lineTo(cx + dx * tipRadius, cy + dy * tipRadius);
+    ctx.strokeStyle = `hsla(${hue},100%,70%,${.45 + value * .5})`;
+    ctx.lineWidth = 1.7 + value * 1.7;
+    ctx.shadowColor = `hsl(${hue},100%,65%)`;
+    ctx.shadowBlur = 7 + value * 15;
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 function drawEquator(cx, cy, radius, sinRotation, cosRotation, front) {
   ctx.beginPath();
@@ -372,28 +399,41 @@ function readSpectrum(dt, time) {
   const sensitivity = Number($('sensitivity').value) / 100;
   const nyquist = state.context ? state.context.sampleRate / 2 : 22050;
   const binHz = nyquist / (state.spectrum?.length || 4096);
+  const liveAt = (band, count) => {
+    if (!playing || !state.spectrum) return 0;
+    const low = 38 * Math.pow(14000 / 38, band / count);
+    const high = 38 * Math.pow(14000 / 38, (band + 1) / count);
+    const first = Math.max(1, Math.floor(low / binHz));
+    const last = Math.min(state.spectrum.length - 1, Math.ceil(high / binHz));
+    let peak = -110;
+    for (let k = first; k <= last; k++) peak = Math.max(peak, state.spectrum[k]);
+    return Math.pow(clamp((peak + 85) / 65), 1.5);
+  };
+  const directLow = method => ['low-envelope', 'low-columns', 'low-wave'].includes(method) && state.lowEnvelope;
+  const methods = { north: $('northEnergyMethod').value, south: $('southEnergyMethod').value, halo: $('haloEnergyMethod').value };
   let liveTotal = 0;
   for (let band = 0; band < 12; band++) {
-    let live = 0;
-    if (playing && state.spectrum) {
-      const low = 38 * Math.pow(14000 / 38, band / 12);
-      const high = 38 * Math.pow(14000 / 38, (band + 1) / 12);
-      const first = Math.max(1, Math.floor(low / binHz));
-      const last = Math.min(state.spectrum.length - 1, Math.ceil(high / binHz));
-      let peak = -110;
-      for (let k = first; k <= last; k++) peak = Math.max(peak, state.spectrum[k]);
-      live = Math.pow(clamp((peak + 85) / 65), 1.5);
-    }
+    const live = liveAt(band, 12);
     liveTotal += live;
     for (const hemisphere of ['north', 'south']) {
-      const method = $(`${hemisphere}EnergyMethod`).value;
+      const method = methods[hemisphere];
       const target = playing ? energyByMethod(method, clamp(live * sensitivity), beat, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope),
         { drive: state.lowDrive, time, index: band, count: 12, playing }) : 0;
-      if (['low-envelope', 'low-columns', 'low-wave'].includes(method) && state.lowEnvelope) levels[hemisphere][band] = target;
+      if (directLow(method)) levels[hemisphere][band] = target;
       else {
         const response = target > levels[hemisphere][band] ? 17 : 4;
         levels[hemisphere][band] += (target - levels[hemisphere][band]) * (1 - Math.exp(-response * dt));
       }
+    }
+  }
+  for (let band = 0; band < HALO_BAND_COUNT; band++) {
+    const target = playing ? energyByMethod(methods.halo, clamp(liveAt(band, HALO_BAND_COUNT) * sensitivity), beat,
+      Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope),
+      { drive: state.lowDrive, time, index: band, count: HALO_BAND_COUNT, playing }) : 0;
+    if (directLow(methods.halo)) levels.halo[band] = target;
+    else {
+      const response = target > levels.halo[band] ? 17 : 4;
+      levels.halo[band] += (target - levels.halo[band]) * (1 - Math.exp(-response * dt));
     }
   }
   const live = clamp(liveTotal / 12 * sensitivity);
@@ -410,12 +450,16 @@ function renderScene(time, delta = 1 / 60) {
   const cityMotion = readSpectrum(dt, time);
 
   const cx = width * 0.51, cy = height * 0.515;
-  const radius = Math.min(height * 0.365, width * 0.28) * Number($('globeScale').value) / 100;
+  const requestedRadius = Math.min(height * 0.365, width * 0.28) * Number($('globeScale').value) / 100;
+  const haloOuterFactor = 1.105 + .018 + Number($('haloHeight').value) / 100;
+  const safeRadius = Math.min(width, height) * .47 / haloOuterFactor;
+  const radius = Math.min(requestedRadius, safeRadius);
   const rotation = 0.55 + time * 0.095 * Number($('spinSpeed').value) / 100;
   const sinRotation = Math.sin(rotation), cosRotation = Math.cos(rotation);
   const glow = ctx.createRadialGradient(cx, cy, radius * .72, cx, cy, radius * 1.35);
   glow.addColorStop(0, 'rgba(67,170,247,0)'); glow.addColorStop(.65, 'rgba(67,170,247,.11)'); glow.addColorStop(1, 'rgba(67,170,247,0)');
   ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, cy, radius * 1.35, 0, TAU); ctx.fill();
+  drawSpectrumHalo(cx, cy, radius, time);
 
   const globe = ctx.createRadialGradient(cx - radius * .4, cy - radius * .46, radius * .05, cx + radius * .15, cy + radius * .22, radius * 1.25);
   globe.addColorStop(0, '#f7fdff'); globe.addColorStop(.42, '#e0f4ff'); globe.addColorStop(.76, '#a7d5eb'); globe.addColorStop(1, '#315b83');
@@ -449,10 +493,10 @@ $('playButton').addEventListener('click', () => { if (!state.audioReady) return;
 $('seek').addEventListener('input', () => { if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Number($('seek').value) / 1000 * audio.duration; });
 $('reanalyzeBpm').addEventListener('click', () => { if (state.decoded) void runBpmAnalysis(state.decoded, state.selectionToken); });
 $('bpmMethod').addEventListener('change', () => { saveSettings(); if (state.decoded) setStatus('bpmStatus', '已切换方法，点击重新分析 BPM'); });
-for (const hemisphere of ['north', 'south']) $(`${hemisphere}EnergyMethod`).addEventListener('change', saveSettings);
+for (const id of ['northEnergyMethod', 'southEnergyMethod', 'haloEnergyMethod']) $(id).addEventListener('change', saveSettings);
 $('cityEnergyMethod').addEventListener('change', saveSettings);
 $('cityLightColor').addEventListener('change', saveSettings);
-for (const id of ['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'sensitivity', 'volume']) $(id).addEventListener('input', syncSettings);
+for (const id of ['globeScale', 'spinSpeed', 'starCount', 'dotSize', 'cityBaseSize', 'cityPulseSize', 'haloHeight', 'sensitivity', 'volume']) $(id).addEventListener('input', syncSettings);
 $('panelToggle').addEventListener('click', () => setPanel(root.classList.contains('panel-collapsed')));
 $('closePanel').addEventListener('click', () => setPanel(false));
 window.addEventListener('keydown', event => {
@@ -464,7 +508,6 @@ for (const event of ['timeupdate', 'loadedmetadata', 'playing', 'pause', 'ended'
 audio.addEventListener('error', () => { if (state.audioReady) { state.audioReady = false; syncPlayback(); setStatus('audioStatus', audioErrorMessage(audio.error)); } });
 window.addEventListener('beforeunload', () => { state.selection?.abort(); if (state.audioUrl) URL.revokeObjectURL(state.audioUrl); void state.context?.close(); });
 
-makeStars();
 $('cityCount').textContent = $('cityDataCount').textContent = String(CITY_GDP.length);
 for (const city of [...CITY_GDP].sort((a, b) => b.gdp - a.gdp)) {
   const row = document.createElement('li');

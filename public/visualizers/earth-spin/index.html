@@ -26,6 +26,10 @@
           <p class="hint">24 根柱：低→高→低镜像排列；南北两侧独立跳动，最高抵达南北纬 30°。</p>
           <label class="setting" for="northEnergyMethod">北侧柱状带能量方法</label><select id="northEnergyMethod"></select>
           <label class="setting" for="southEnergyMethod">南侧柱状带能量方法</label><select id="southEnergyMethod"></select>
+          <p class="hint">地球外侧光圈使用 96 根镜像频谱柱，独立响应音乐。</p>
+          <label class="setting" for="haloEnergyMethod">环绕光圈能量方法</label><select id="haloEnergyMethod"></select>
+          <label class="setting" for="haloHeight">光圈最大高度 <output id="haloHeightValue">18%</output></label><input id="haloHeight" type="range" min="5" max="30" step="1" value="18" />
+          <p class="hint">高度按地球半径计算；光圈较高时会自动留出画面边距。</p>
           <label class="setting" for="sensitivity">频谱响应 <output id="sensitivityValue">100%</output></label><input id="sensitivity" type="range" min="40" max="200" value="100" />
           <p id="lowEnvelopeStatus" class="hint" role="status" aria-live="polite">选择音乐后分析低频包络</p>
         </section>

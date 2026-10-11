@@ -3,7 +3,8 @@ import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEne
 import { travelingDepth, roadPoint, movingStar } from './scene-motion.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
-import { analyzeLowFrequencyFile, buildLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
+import { analyzeLowFrequencyFile, buildLowFrequencyDrive, sampleLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
+import { drawDancer } from './dancer.js';
 
 const $ = id => document.getElementById(id);
 const root = $('odyssey');
@@ -47,6 +48,7 @@ function syncControls() {
 function syncSettings() {
   for (const id of ['volume', 'sensitivity', 'glow', 'dim']) $(`${id}Value`).textContent = `${$(id).value}%`;
   $('starsValue').textContent = $('stars').value;
+  for (const id of ['dancerSize', 'dancerDepth', 'dancerMotion', 'dancerGlow']) $(`${id}Value`).textContent = `${$(id).value}%`;
   audio.volume = Number($('volume').value) / 100;
   renderBackgroundCache();
   try {
@@ -54,6 +56,8 @@ function syncSettings() {
       volume: $('volume').value, sensitivity: $('sensitivity').value,
       glow: $('glow').value, dim: $('dim').value, stars: $('stars').value, bpmMethod: $('bpmMethod').value,
       leftEnergyMethod: $('leftEnergyMethod').value, rightEnergyMethod: $('rightEnergyMethod').value,
+      dancerMode: $('dancerMode').value, dancerSize: $('dancerSize').value, dancerDepth: $('dancerDepth').value,
+      dancerMotion: $('dancerMotion').value, dancerGlow: $('dancerGlow').value,
     }));
   } catch {}
 }
@@ -344,12 +348,13 @@ function updateSpectrum() {
   }
 }
 
-function drawBars(pointAt, beatPulse, time) {
+function drawBars(pointAt, beatPulse, time, minDepth = 0, maxDepth = 1) {
   const glow = Number($('glow').value) / 75;
   const order = Array.from({ length: BAR_COUNT }, (_, index) => index)
     .sort((a, b) => travelingDepth(a, BAR_COUNT, time) - travelingDepth(b, BAR_COUNT, time));
   for (const i of order) {
     const depth = travelingDepth(i, BAR_COUNT, time);
+    if (depth < minDepth || depth >= maxDepth) continue;
     const p = pointAt(depth);
     const width = 1.2 + depth * 5.2;
     for (const side of ['left', 'right']) {
@@ -376,6 +381,23 @@ function drawBars(pointAt, beatPulse, time) {
       ctx.restore();
     }
   }
+}
+
+function drawRoadDancer(pointAt, time, beatPulse) {
+  const mode = $('dancerMode').value;
+  if (mode === 'off') return;
+  const depth = Number($('dancerDepth').value) / 100;
+  const point = pointAt(depth);
+  const height = Math.min(point.half * .8, state.height * .35) * Number($('dancerSize').value) / 100;
+  const energy = state.lowDrive ? sampleLowFrequencyDrive(state.lowDrive, time)
+    : Math.max(beatPulse, (levels[0] + levels[1] + levels[2]) / 3);
+  drawDancer(ctx, {
+    mode, x: point.center, y: point.y, height, time,
+    bpm: state.bpm?.confidence >= .2 ? state.bpm.bpm : 110,
+    firstBeatTime: firstBeatOffset(state.bpm) || 0,
+    energy, motion: Number($('dancerMotion').value) / 100,
+    glow: Number($('dancerGlow').value) / 100,
+  });
 }
 
 function drawStars(time) {
@@ -423,7 +445,13 @@ function renderScene(time, dt) {
   const pointAt = roadGeometry();
   updateSpectrum();
   drawRoad(pointAt, visualPulse, time);
-  drawBars(pointAt, beatPulse, time);
+  if ($('dancerMode').value === 'off') drawBars(pointAt, beatPulse, time);
+  else {
+    const depth = Number($('dancerDepth').value) / 100;
+    drawBars(pointAt, beatPulse, time, 0, depth);
+    drawRoadDancer(pointAt, time, beatPulse);
+    drawBars(pointAt, beatPulse, time, depth, 1);
+  }
 }
 
 function drawFrame(now) {
@@ -437,16 +465,21 @@ let savedSettings = {};
 try {
   const saved = JSON.parse(localStorage.getItem('resonance:space-odyssey') || '{}');
   savedSettings = saved;
-  for (const id of ['volume', 'sensitivity', 'glow', 'dim', 'stars']) {
-    if (Number.isFinite(Number(saved[id]))) $(id).value = saved[id];
+  for (const id of ['volume', 'sensitivity', 'glow', 'dim', 'stars', 'dancerSize', 'dancerDepth', 'dancerMotion', 'dancerGlow']) {
+    if (saved[id] !== undefined && Number.isFinite(Number(saved[id]))) {
+      const input = $(id);
+      input.value = String(Math.max(Number(input.min), Math.min(Number(input.max), Number(saved[id]))));
+    }
   }
+  if (['skeleton', 'sprite', 'off'].includes(saved.dancerMode)) $('dancerMode').value = saved.dancerMode;
 } catch {}
 
 fillMethodSelect($('bpmMethod'), BPM_METHODS, savedSettings.bpmMethod || 'beat-grid');
 fillMethodSelect($('leftEnergyMethod'), ENERGY_METHODS, savedSettings.leftEnergyMethod || 'live');
 fillMethodSelect($('rightEnergyMethod'), ENERGY_METHODS, savedSettings.rightEnergyMethod || 'mix');
 
-for (const id of ['volume', 'sensitivity', 'glow', 'dim', 'stars']) $(id).addEventListener('input', syncSettings);
+for (const id of ['volume', 'sensitivity', 'glow', 'dim', 'stars', 'dancerSize', 'dancerDepth', 'dancerMotion', 'dancerGlow']) $(id).addEventListener('input', syncSettings);
+$('dancerMode').addEventListener('change', syncSettings);
 for (const id of ['leftEnergyMethod', 'rightEnergyMethod']) $(id).addEventListener('change', syncSettings);
 $('bpmMethod').addEventListener('change', () => {
   syncSettings();
@@ -478,7 +511,7 @@ $('backgroundFile').addEventListener('change', event => {
   const url = URL.createObjectURL(file);
   setBackground(url, url);
 });
-$('resetBackground').addEventListener('click', () => setBackground('nebula.png'));
+$('resetBackground').addEventListener('click', () => setBackground('Nebula-NGC-6302.webp'));
 $('panelToggle').addEventListener('click', () => setPanel(root.classList.contains('panel-collapsed')));
 $('closePanel').addEventListener('click', () => setPanel(false));
 window.addEventListener('keydown', event => {
@@ -513,7 +546,7 @@ window.addEventListener('pagehide', () => {
 setPanel(!window.matchMedia('(max-width: 640px)').matches);
 syncSettings();
 resize();
-setBackground('nebula.png');
+setBackground('Nebula-NGC-6302.webp');
 registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });
 bindAnalysisSummary($('bpmStatus'), $('lowEnvelopeStatus'), $('transportAnalysis'));
 bindPreviewFullscreen($('scenePreview'), $('fullscreenPreview'));

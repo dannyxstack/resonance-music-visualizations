@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BAR_BANDS, latitudeForLevel } from '../public/visualizers/earth-spin/spectrum-layout.js';
+import { BAR_BANDS, HALO_BAR_COUNT, HALO_BAND_COUNT, haloBandAt, latitudeForLevel } from '../public/visualizers/earth-spin/spectrum-layout.js';
+import { recedingStar } from '../public/visualizers/earth-spin/star-motion.js';
 import { CITY_GDP, CITY_ENERGY_METHODS, CITY_LIGHT_COLORS, cityEnergyForMethod, cityLightValue, cityLightRadius } from '../public/visualizers/earth-spin/city-lights.js';
 
 test('equator bands mirror low to high to low without a high-low seam', () => {
@@ -14,6 +15,32 @@ test('spectrum bars remain within 30 degrees of the equator in both directions',
   assert.equal(latitudeForLevel(-1), 5);
   assert.equal(latitudeForLevel(1), 30);
   assert.equal(latitudeForLevel(4), 30);
+});
+
+test('halo spectrum mirrors its 48 frequency bands around the globe', () => {
+  assert.equal(HALO_BAR_COUNT, 96);
+  assert.equal(HALO_BAND_COUNT, 48);
+  assert.equal(haloBandAt(0), 0);
+  assert.equal(haloBandAt(47), 47);
+  assert.equal(haloBandAt(48), 47);
+  assert.equal(haloBandAt(95), 0);
+  assert.equal(haloBandAt(96), 0);
+});
+
+test('stars move toward the center, fade and repeat deterministically with audio time', () => {
+  const centerX = 400, centerY = 300;
+  const distance = star => Math.hypot(star.x - centerX, star.y - centerY);
+  const before = recedingStar(2, 0, 800, 600);
+  const after = recedingStar(2, 1, 800, 600);
+  assert.ok(distance(after) < distance(before));
+  assert.deepEqual(recedingStar(2, 1, 800, 600), after);
+  assert.ok(after.radius <= before.radius);
+  for (let i = 0; i < 20; i++) {
+    const star = recedingStar(i, 1000, 800, 600);
+    assert.ok(star.x >= 0 && star.x <= 800);
+    assert.ok(star.y >= 0 && star.y <= 600);
+    assert.ok(star.alpha >= 0 && star.alpha <= 1);
+  }
 });
 
 test('all 39 requested city lights have usable coordinates and GDP snapshots', () => {
