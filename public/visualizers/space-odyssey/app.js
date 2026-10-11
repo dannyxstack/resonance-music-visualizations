@@ -4,6 +4,9 @@ import { travelingDepth, roadPoint, movingStar } from './scene-motion.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
 import { analyzeLowFrequencyFile, buildLowFrequencyDrive, sampleLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
+import { analyzeOfflineSpectrum } from '../shared/offline-spectrum.js';
+import { drawTextOverlay } from '../shared/text-overlay.js';
+import { exportCanvasVideo, downloadVideo } from '../shared/video-export.js';
 import { drawDancer } from './dancer.js';
 
 const $ = id => document.getElementById(id);
@@ -13,6 +16,7 @@ const ctx = canvas.getContext('2d', { alpha: false });
 const audio = $('player');
 const BAR_COUNT = 72;
 const levels = new Float32Array(BAR_COUNT);
+let drawing = null;
 const state = {
   width: 0, height: 0, dpr: 1, frame: 0,
   context: null, analyser: null, spectrum: null,
@@ -21,7 +25,32 @@ const state = {
   lowEnvelope: null, lowDrive: null, lowLevel: 0, lowToken: 0, lastFrameTime: 0,
   backgroundToken: 0, backgroundUrl: null, backgroundImage: null,
   backgroundCanvas: document.createElement('canvas'),
+  bpmPromise: null, lowPromise: null, exportController: null,
 };
+
+function sceneSettings() {
+  return {
+    sensitivity: Number($('sensitivity').value) / 100,
+    glow: Number($('glow').value) / 75,
+    dim: Number($('dim').value) / 100,
+    stars: Number($('stars').value),
+    leftEnergyMethod: $('leftEnergyMethod').value,
+    rightEnergyMethod: $('rightEnergyMethod').value,
+    dancerMode: $('dancerMode').value,
+    dancerSize: Number($('dancerSize').value) / 100,
+    dancerDepth: Number($('dancerDepth').value) / 100,
+    dancerMotion: Number($('dancerMotion').value) / 100,
+    dancerGlow: Number($('dancerGlow').value) / 100,
+    text: {
+      enabled: $('showText').checked,
+      title: $('sceneTitle').value,
+      subtitle: $('sceneSubtitle').value,
+      author: $('sceneAuthor').value,
+      position: $('textPosition').value,
+      color: $('textColor').value,
+    },
+  };
+}
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return '00:00';
@@ -43,6 +72,7 @@ function syncControls() {
   $('currentTime').textContent = formatTime(audio.currentTime);
   $('duration').textContent = formatTime(audio.duration);
   $('seek').value = Number.isFinite(audio.duration) && audio.duration > 0 ? String(Math.round(audio.currentTime / audio.duration * 1000)) : '0';
+  $('exportVideo').disabled = !state.audioReady || Boolean(state.exportController);
 }
 
 function syncSettings() {
@@ -58,6 +88,10 @@ function syncSettings() {
       leftEnergyMethod: $('leftEnergyMethod').value, rightEnergyMethod: $('rightEnergyMethod').value,
       dancerMode: $('dancerMode').value, dancerSize: $('dancerSize').value, dancerDepth: $('dancerDepth').value,
       dancerMotion: $('dancerMotion').value, dancerGlow: $('dancerGlow').value,
+      showText: $('showText').checked, sceneTitle: $('sceneTitle').value,
+      sceneSubtitle: $('sceneSubtitle').value, sceneAuthor: $('sceneAuthor').value,
+      textPosition: $('textPosition').value, textColor: $('textColor').value,
+      exportSize: $('exportSize').value, exportFps: $('exportFps').value, exportMode: $('exportMode').value,
     }));
   } catch {}
 }
@@ -167,6 +201,7 @@ async function playSelected(selection) {
 }
 
 async function selectAudio(file) {
+  state.exportController?.abort();
   state.analysisToken++;
   state.lowToken++;
   state.lowEnvelope = null;
@@ -207,8 +242,8 @@ async function selectAudio(file) {
     state.audioReady = true;
     syncControls();
     setStatus('audioStatus', '音频已就绪 · 正在自动播放');
-    void runBpmAnalysis();
-    void runLowEnvelopeAnalysis(file);
+    state.bpmPromise = runBpmAnalysis();
+    state.lowPromise = runLowEnvelopeAnalysis(file);
     void playSelected(selection);
   } catch (error) {
     if (!selection.signal.aborted) {
@@ -238,17 +273,20 @@ function setBackground(url, objectUrl = null) {
 function renderBackgroundCache() {
   const image = state.backgroundImage;
   if (!state.width || !image?.naturalWidth) return;
-  const cache = state.backgroundCanvas;
-  cache.width = Math.round(state.width * state.dpr);
-  cache.height = Math.round(state.height * state.dpr);
+  paintBackgroundCache(state.backgroundCanvas, Math.round(state.width * state.dpr), Math.round(state.height * state.dpr), image, Number($('dim').value) / 100);
+}
+
+function paintBackgroundCache(cache, width, height, image, dim) {
+  cache.width = width;
+  cache.height = height;
   const bg = cache.getContext('2d');
-  const scale = Math.max(cache.width / image.naturalWidth, cache.height / image.naturalHeight);
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
   const iw = image.naturalWidth * scale;
   const ih = image.naturalHeight * scale;
   bg.fillStyle = '#050713';
   bg.fillRect(0, 0, cache.width, cache.height);
   bg.drawImage(image, (cache.width - iw) / 2, (cache.height - ih) / 2, iw, ih);
-  bg.fillStyle = `rgba(2, 4, 13, ${Number($('dim').value) / 100})`;
+  bg.fillStyle = `rgba(2, 4, 13, ${dim})`;
   bg.fillRect(0, 0, cache.width, cache.height);
   const vignette = bg.createRadialGradient(cache.width * .47, cache.height * .45, cache.width * .1, cache.width * .47, cache.height * .45, cache.width * .75);
   vignette.addColorStop(0, '#00000000');
@@ -269,65 +307,65 @@ function resize() {
 }
 
 function roadGeometry() {
-  return depth => roadPoint(depth, state.width, state.height, false);
+  return depth => roadPoint(depth, drawing.width, drawing.height, false);
 }
 
 function drawRail(pointAt, side, glow) {
   const path = () => {
     const far = pointAt(0);
     const near = pointAt(1);
-    ctx.beginPath();
-    ctx.moveTo(far[side], far.y);
-    ctx.lineTo(near[side], near.y);
+    drawing.ctx.beginPath();
+    drawing.ctx.moveTo(far[side], far.y);
+    drawing.ctx.lineTo(near[side], near.y);
   };
   const color = side === 'left' ? '#74edff' : '#ff8df6';
-  ctx.save();
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 22 * glow;
-  ctx.strokeStyle = side === 'left' ? `rgba(57, 178, 255, ${.24 * glow})` : `rgba(221, 82, 255, ${.24 * glow})`;
-  ctx.lineWidth = 14 * glow;
-  path(); ctx.stroke();
-  ctx.shadowBlur = 11 * glow;
-  ctx.lineWidth = 3.1;
-  ctx.strokeStyle = color;
-  path(); ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = '#ffffffb8';
-  path(); ctx.stroke();
-  ctx.restore();
+  drawing.ctx.save();
+  drawing.ctx.shadowColor = color;
+  drawing.ctx.shadowBlur = 22 * glow;
+  drawing.ctx.strokeStyle = side === 'left' ? `rgba(57, 178, 255, ${.24 * glow})` : `rgba(221, 82, 255, ${.24 * glow})`;
+  drawing.ctx.lineWidth = 14 * glow;
+  path(); drawing.ctx.stroke();
+  drawing.ctx.shadowBlur = 11 * glow;
+  drawing.ctx.lineWidth = 3.1;
+  drawing.ctx.strokeStyle = color;
+  path(); drawing.ctx.stroke();
+  drawing.ctx.shadowBlur = 0;
+  drawing.ctx.lineWidth = 1;
+  drawing.ctx.strokeStyle = '#ffffffb8';
+  path(); drawing.ctx.stroke();
+  drawing.ctx.restore();
 }
 
 function drawRoad(pointAt, beatPulse, time) {
   const near = pointAt(1);
   const far = pointAt(0);
-  const glow = Number($('glow').value) / 75 * (1 + beatPulse * .2);
-  const roadFill = ctx.createLinearGradient(0, far.y, 0, near.y);
+  const glow = drawing.settings.glow * (1 + beatPulse * .2);
+  const roadFill = drawing.ctx.createLinearGradient(0, far.y, 0, near.y);
   roadFill.addColorStop(0, '#0c1e3b20');
   roadFill.addColorStop(1, '#020513b0');
-  ctx.beginPath();
-  ctx.moveTo(far.left, far.y);
-  ctx.lineTo(near.left, near.y);
-  ctx.lineTo(near.right, near.y);
-  ctx.lineTo(far.right, far.y);
-  ctx.closePath();
-  ctx.fillStyle = roadFill;
-  ctx.fill();
+  drawing.ctx.beginPath();
+  drawing.ctx.moveTo(far.left, far.y);
+  drawing.ctx.lineTo(near.left, near.y);
+  drawing.ctx.lineTo(near.right, near.y);
+  drawing.ctx.lineTo(far.right, far.y);
+  drawing.ctx.closePath();
+  drawing.ctx.fillStyle = roadFill;
+  drawing.ctx.fill();
 
-  ctx.save();
-  ctx.lineWidth = 1;
+  drawing.ctx.save();
+  drawing.ctx.lineWidth = 1;
   for (let i = 0; i < 22; i++) {
     const depth = travelingDepth(i, 22, time);
     const p = pointAt(depth);
-    ctx.strokeStyle = `rgba(132, 160, 225, ${.035 + depth * .15 + beatPulse * .03})`;
-    ctx.beginPath(); ctx.moveTo(p.left, p.y); ctx.lineTo(p.right, p.y); ctx.stroke();
+    drawing.ctx.strokeStyle = `rgba(132, 160, 225, ${.035 + depth * .15 + beatPulse * .03})`;
+    drawing.ctx.beginPath(); drawing.ctx.moveTo(p.left, p.y); drawing.ctx.lineTo(p.right, p.y); drawing.ctx.stroke();
   }
-  ctx.setLineDash([10, 20]);
-  ctx.lineDashOffset = -time * 65;
-  ctx.strokeStyle = `rgba(177, 195, 255, ${.18 + beatPulse * .16})`;
-  ctx.lineWidth = 1.3;
-  ctx.beginPath(); ctx.moveTo(far.center, far.y); ctx.lineTo(near.center, near.y); ctx.stroke();
-  ctx.restore();
+  drawing.ctx.setLineDash([10, 20]);
+  drawing.ctx.lineDashOffset = -time * 65;
+  drawing.ctx.strokeStyle = `rgba(177, 195, 255, ${.18 + beatPulse * .16})`;
+  drawing.ctx.lineWidth = 1.3;
+  drawing.ctx.beginPath(); drawing.ctx.moveTo(far.center, far.y); drawing.ctx.lineTo(near.center, near.y); drawing.ctx.stroke();
+  drawing.ctx.restore();
   drawRail(pointAt, 'left', glow);
   drawRail(pointAt, 'right', glow);
 }
@@ -349,7 +387,7 @@ function updateSpectrum() {
 }
 
 function drawBars(pointAt, beatPulse, time, minDepth = 0, maxDepth = 1) {
-  const glow = Number($('glow').value) / 75;
+  const glow = drawing.settings.glow;
   const order = Array.from({ length: BAR_COUNT }, (_, index) => index)
     .sort((a, b) => travelingDepth(a, BAR_COUNT, time) - travelingDepth(b, BAR_COUNT, time));
   for (const i of order) {
@@ -358,107 +396,207 @@ function drawBars(pointAt, beatPulse, time, minDepth = 0, maxDepth = 1) {
     const p = pointAt(depth);
     const width = 1.2 + depth * 5.2;
     for (const side of ['left', 'right']) {
-      const method = $(side === 'left' ? 'leftEnergyMethod' : 'rightEnergyMethod').value;
-      const strength = energyByMethod(method, levels[i], beatPulse, Boolean(state.bpm), state.lowLevel, Boolean(state.lowEnvelope),
-        { drive: state.lowDrive, time, index: i, count: BAR_COUNT, playing: state.audioReady && !audio.paused && !audio.ended });
+      const method = side === 'left' ? drawing.settings.leftEnergyMethod : drawing.settings.rightEnergyMethod;
+      const strength = energyByMethod(method, drawing.levels[i], beatPulse, Boolean(drawing.bpm), drawing.lowLevel, Boolean(drawing.lowEnvelope),
+        { drive: drawing.lowDrive, time, index: i, count: BAR_COUNT, playing: drawing.playing });
       const length = Math.min(p.half * .82, p.half * (.07 + strength * .68));
       const from = p[side];
       const to = from + (side === 'left' ? length : -length);
       const color = side === 'left' ? '#80dfff' : '#f4a5fc';
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.shadowColor = color;
-      ctx.shadowBlur = (6 + depth * 14) * glow;
-      ctx.lineWidth = width;
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = (.5 + depth * .35 + beatPulse * .08) * Math.min(1, depth * 12);
-      ctx.beginPath(); ctx.moveTo(from, p.y); ctx.lineTo(to, p.y); ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = Math.max(1, width * .34);
-      ctx.strokeStyle = '#fff';
-      ctx.globalAlpha = (.36 + strength * .32) * Math.min(1, depth * 12);
-      ctx.beginPath(); ctx.moveTo(from, p.y); ctx.lineTo(to, p.y); ctx.stroke();
-      ctx.restore();
+      drawing.ctx.save();
+      drawing.ctx.lineCap = 'round';
+      drawing.ctx.shadowColor = color;
+      drawing.ctx.shadowBlur = (6 + depth * 14) * glow;
+      drawing.ctx.lineWidth = width;
+      drawing.ctx.strokeStyle = color;
+      drawing.ctx.globalAlpha = (.5 + depth * .35 + beatPulse * .08) * Math.min(1, depth * 12);
+      drawing.ctx.beginPath(); drawing.ctx.moveTo(from, p.y); drawing.ctx.lineTo(to, p.y); drawing.ctx.stroke();
+      drawing.ctx.shadowBlur = 0;
+      drawing.ctx.lineWidth = Math.max(1, width * .34);
+      drawing.ctx.strokeStyle = '#fff';
+      drawing.ctx.globalAlpha = (.36 + strength * .32) * Math.min(1, depth * 12);
+      drawing.ctx.beginPath(); drawing.ctx.moveTo(from, p.y); drawing.ctx.lineTo(to, p.y); drawing.ctx.stroke();
+      drawing.ctx.restore();
     }
   }
 }
 
 function drawRoadDancer(pointAt, time, beatPulse) {
-  const mode = $('dancerMode').value;
+  const mode = drawing.settings.dancerMode;
   if (mode === 'off') return;
-  const depth = Number($('dancerDepth').value) / 100;
+  const depth = drawing.settings.dancerDepth;
   const point = pointAt(depth);
-  const height = Math.min(point.half * .8, state.height * .35) * Number($('dancerSize').value) / 100;
-  const energy = state.lowDrive ? sampleLowFrequencyDrive(state.lowDrive, time)
-    : Math.max(beatPulse, (levels[0] + levels[1] + levels[2]) / 3);
-  drawDancer(ctx, {
+  const height = Math.min(point.half * .8, drawing.height * .35) * drawing.settings.dancerSize;
+  const energy = drawing.lowDrive ? sampleLowFrequencyDrive(drawing.lowDrive, time)
+    : Math.max(beatPulse, (drawing.levels[0] + drawing.levels[1] + drawing.levels[2]) / 3);
+  drawDancer(drawing.ctx, {
     mode, x: point.center, y: point.y, height, time,
-    bpm: state.bpm?.confidence >= .2 ? state.bpm.bpm : 110,
-    firstBeatTime: firstBeatOffset(state.bpm) || 0,
-    energy, motion: Number($('dancerMotion').value) / 100,
-    glow: Number($('dancerGlow').value) / 100,
+    bpm: drawing.bpm?.confidence >= .2 ? drawing.bpm.bpm : 110,
+    firstBeatTime: firstBeatOffset(drawing.bpm) || 0,
+    energy, motion: drawing.settings.dancerMotion,
+    glow: drawing.settings.dancerGlow,
   });
 }
 
 function drawStars(time) {
-  const count = Number($('stars').value);
+  const count = drawing.settings.stars;
   for (let index = 0; index < count; index++) {
-    const star = movingStar(index, time, state.width, state.height);
+    const star = movingStar(index, time, drawing.width, drawing.height);
     if (star.alpha < .01) continue;
-    ctx.save();
-    ctx.globalAlpha = star.alpha;
-    ctx.fillStyle = star.brightness > .7 ? '#eff7ff' : '#b8d6ff';
-    ctx.shadowColor = star.brightness > .7 ? '#b0daff' : '#799cde';
-    ctx.shadowBlur = star.radius * (4 + star.brightness * 4);
-    ctx.beginPath();
-    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-    ctx.fill();
+    drawing.ctx.save();
+    drawing.ctx.globalAlpha = star.alpha;
+    drawing.ctx.fillStyle = star.brightness > .7 ? '#eff7ff' : '#b8d6ff';
+    drawing.ctx.shadowColor = star.brightness > .7 ? '#b0daff' : '#799cde';
+    drawing.ctx.shadowBlur = star.radius * (4 + star.brightness * 4);
+    drawing.ctx.beginPath();
+    drawing.ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+    drawing.ctx.fill();
     if (star.brightness > .84) {
-      ctx.strokeStyle = '#d9edff';
-      ctx.lineWidth = .65;
-      ctx.beginPath();
-      ctx.moveTo(star.x - star.radius * 3, star.y);
-      ctx.lineTo(star.x + star.radius * 3, star.y);
-      ctx.moveTo(star.x, star.y - star.radius * 3);
-      ctx.lineTo(star.x, star.y + star.radius * 3);
-      ctx.stroke();
+      drawing.ctx.strokeStyle = '#d9edff';
+      drawing.ctx.lineWidth = .65;
+      drawing.ctx.beginPath();
+      drawing.ctx.moveTo(star.x - star.radius * 3, star.y);
+      drawing.ctx.lineTo(star.x + star.radius * 3, star.y);
+      drawing.ctx.moveTo(star.x, star.y - star.radius * 3);
+      drawing.ctx.lineTo(star.x, star.y + star.radius * 3);
+      drawing.ctx.stroke();
     }
-    ctx.restore();
+    drawing.ctx.restore();
   }
 }
 
-function renderScene(time, dt) {
-  state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, time, state.audioReady && !audio.paused && !audio.ended, dt, state.lowLevel);
-  const { width: w, height: h } = state;
+function renderScene(time, dt, surface = null, features = null, settings = null) {
+  const exporting = Boolean(features);
+  const playing = exporting || (state.audioReady && !audio.paused && !audio.ended);
+  if (!exporting) {
+    state.lowLevel = updateLowFrequencyLevel(state.lowEnvelope, time, playing, dt, state.lowLevel);
+    updateSpectrum();
+  }
+  drawing = {
+    ctx: surface?.context || ctx,
+    width: surface?.width || state.width,
+    height: surface?.height || state.height,
+    background: surface?.background || state.backgroundCanvas,
+    backgroundReady: surface ? Boolean(surface.backgroundReady) : Boolean(state.backgroundImage?.naturalWidth),
+    levels: features?.levels || levels,
+    lowLevel: exporting ? sampleLowFrequencyDrive(features.lowDrive, time) : state.lowLevel,
+    lowDrive: exporting ? features.lowDrive : state.lowDrive,
+    lowEnvelope: exporting ? features.lowEnvelope : state.lowEnvelope,
+    bpm: exporting ? features.bpm : state.bpm,
+    playing,
+    settings: settings || sceneSettings(),
+  };
+  const { width: w, height: h } = drawing;
   if (!w || !h) return;
-  if (state.backgroundImage?.naturalWidth) ctx.drawImage(state.backgroundCanvas, 0, 0, w, h);
-  else { ctx.fillStyle = '#050713'; ctx.fillRect(0, 0, w, h); }
+  if (drawing.backgroundReady) drawing.ctx.drawImage(drawing.background, 0, 0, w, h);
+  else { drawing.ctx.fillStyle = '#050713'; drawing.ctx.fillRect(0, 0, w, h); }
   drawStars(time);
 
   let beatPulse = 0;
-  if (state.bpm && state.audioReady && !audio.paused && !audio.ended) {
-    beatPulse = beatEnergyAt(state.bpm, time);
+  if (drawing.bpm && playing) {
+    beatPulse = beatEnergyAt(drawing.bpm, time);
   }
-  const visualPulse = state.lowEnvelope && ($('leftEnergyMethod').value === 'low-envelope' || $('rightEnergyMethod').value === 'low-envelope')
-    ? state.lowLevel : beatPulse;
-  root.style.setProperty('--beat-pulse', visualPulse.toFixed(3));
+  const visualPulse = drawing.lowEnvelope && (drawing.settings.leftEnergyMethod === 'low-envelope' || drawing.settings.rightEnergyMethod === 'low-envelope')
+    ? drawing.lowLevel : beatPulse;
+  if (!exporting) root.style.setProperty('--beat-pulse', visualPulse.toFixed(3));
   const pointAt = roadGeometry();
-  updateSpectrum();
   drawRoad(pointAt, visualPulse, time);
-  if ($('dancerMode').value === 'off') drawBars(pointAt, beatPulse, time);
+  if (drawing.settings.dancerMode === 'off') drawBars(pointAt, beatPulse, time);
   else {
-    const depth = Number($('dancerDepth').value) / 100;
+    const depth = drawing.settings.dancerDepth;
     drawBars(pointAt, beatPulse, time, 0, depth);
     drawRoadDancer(pointAt, time, beatPulse);
     drawBars(pointAt, beatPulse, time, depth, 1);
   }
+  drawTextOverlay(drawing.ctx, w, h, drawing.settings.text);
 }
 
 function drawFrame(now) {
   state.frame = requestAnimationFrame(drawFrame);
   const dt = state.lastFrameTime ? Math.min(0.1, (now - state.lastFrameTime) / 1000) : 0;
   state.lastFrameTime = now;
-  renderScene(state.audioReady ? audio.currentTime : 0, dt);
+  if (!state.exportController) renderScene(state.audioReady ? audio.currentTime : 0, dt);
+}
+
+function exportStatus(message, percentage = null, error = false) {
+  setStatus('exportStatus', message, error);
+  if (percentage !== null) {
+    $('exportProgress').hidden = false;
+    $('exportProgress').value = Math.max(0, Math.min(100, percentage));
+  }
+}
+
+async function startExport() {
+  if (!state.audioReady || !state.audioFile || state.exportController) return;
+  const file = state.audioFile;
+  const settings = sceneSettings();
+  const [width, height] = $('exportSize').value.split('x').map(Number);
+  const fps = Number($('exportFps').value);
+  const exportMode = $('exportMode').value;
+  const controller = new AbortController();
+  state.exportController = controller;
+  const resumePlayback = !audio.paused && !audio.ended;
+  audio.pause();
+  $('cancelExport').hidden = false;
+  exportStatus('正在等待节奏分析…', 0);
+  syncControls();
+  let decodeContext;
+  let activeExportMode = exportMode === 'realtime' || (exportMode === 'auto' && typeof VideoEncoder === 'undefined') ? 'realtime' : 'offline';
+  try {
+    if (exportMode === 'offline' && typeof VideoEncoder === 'undefined') {
+      throw new Error(window.isSecureContext
+        ? '当前页面无法使用 WebCodecs。请选择「自动选择」或「实时录制」。'
+        : '当前访问地址不是安全上下文，WebCodecs 不可用。请选择「自动选择」或「实时录制」，或通过 localhost、127.0.0.1、HTTPS 访问。');
+    }
+    // Resume during the button gesture; MediaRecorder's audio track uses this context.
+    decodeContext = new AudioContext();
+    void decodeContext.resume().catch(() => {});
+    await Promise.all([state.bpmPromise, state.lowPromise].filter(Boolean));
+    if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+    const features = { bpm: state.bpm, lowEnvelope: state.lowEnvelope, lowDrive: state.lowDrive };
+    exportStatus('正在解码音乐…', 3);
+    const audioBuffer = await decodeContext.decodeAudioData(await file.arrayBuffer());
+    if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+    exportStatus('正在计算每帧频谱…', 10);
+    const spectrum = await analyzeOfflineSpectrum(audioBuffer, fps, settings.sensitivity, () => controller.signal.aborted,
+      progress => exportStatus(`正在计算每帧频谱… ${Math.round(progress * 100)}%`, 10 + progress * 20));
+    if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+    await document.fonts.ready;
+    const background = document.createElement('canvas');
+    const backgroundImage = state.backgroundImage;
+    const backgroundReady = Boolean(backgroundImage?.naturalWidth);
+    if (backgroundReady) paintBackgroundCache(background, width, height, backgroundImage, settings.dim);
+    const name = file.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_') || 'space-odyssey';
+    exportStatus(activeExportMode === 'realtime' ? '正在实时录制…耗时约为歌曲时长' : '正在逐帧渲染与编码…', 30);
+    const result = await exportCanvasVideo({
+      audioBuffer, audioContext: decodeContext, width, height, fps, mode: exportMode, signal: controller.signal,
+      metadata: { title: settings.text.title || name, author: settings.text.author },
+      render: ({ context, time, frame, delta }) => {
+        const start = frame * BAR_COUNT;
+        renderScene(time, delta, { context, width, height, background, backgroundReady },
+          { ...features, levels: spectrum.levels.subarray(start, start + BAR_COUNT) }, settings);
+      },
+      onMode: mode => {
+        activeExportMode = mode;
+        if (mode === 'realtime') exportStatus(window.isSecureContext
+          ? '正在实时录制…耗时约为歌曲时长' : '当前地址不支持逐帧编码，正在实时录制…', 30);
+      },
+      onProgress: progress => exportStatus(`${activeExportMode === 'realtime' ? '正在实时录制' : '正在逐帧渲染与编码'}… ${Math.round(progress * 100)}%`, 30 + progress * 65),
+    });
+    if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+    exportStatus('视频已完成，正在保存…', 100);
+    downloadVideo(result, `${name}-space-odyssey`);
+    exportStatus(`导出完成：${result.extension.replace('.', '').toUpperCase()}，包含原音乐`, 100);
+  } catch (error) {
+    if (error?.name === 'AbortError') exportStatus('已取消导出。', 0);
+    else exportStatus(`导出失败：${error?.message || '未知错误'}`, null, true);
+  } finally {
+    if (decodeContext) void decodeContext.close();
+    if (state.exportController === controller) state.exportController = null;
+    $('cancelExport').hidden = true;
+    syncControls();
+    if (resumePlayback && state.audioFile === file && state.audioReady) void playSelected(state.selection);
+  }
 }
 
 let savedSettings = {};
@@ -472,6 +610,13 @@ try {
     }
   }
   if (['skeleton', 'sprite', 'off'].includes(saved.dancerMode)) $('dancerMode').value = saved.dancerMode;
+  for (const id of ['sceneTitle', 'sceneSubtitle', 'sceneAuthor']) if (typeof saved[id] === 'string') $(id).value = saved[id];
+  $('showText').checked = Boolean(saved.showText);
+  if (['bottom-left', 'bottom-center', 'top-left', 'top-center'].includes(saved.textPosition)) $('textPosition').value = saved.textPosition;
+  if (/^#[0-9a-f]{6}$/i.test(saved.textColor || '')) $('textColor').value = saved.textColor;
+  if (['1280x720', '1920x1080'].includes(saved.exportSize)) $('exportSize').value = saved.exportSize;
+  if (['30', '60'].includes(saved.exportFps)) $('exportFps').value = saved.exportFps;
+  if (['auto', 'offline', 'realtime'].includes(saved.exportMode)) $('exportMode').value = saved.exportMode;
 } catch {}
 
 fillMethodSelect($('bpmMethod'), BPM_METHODS, savedSettings.bpmMethod || 'beat-grid');
@@ -479,6 +624,7 @@ fillMethodSelect($('leftEnergyMethod'), ENERGY_METHODS, savedSettings.leftEnergy
 fillMethodSelect($('rightEnergyMethod'), ENERGY_METHODS, savedSettings.rightEnergyMethod || 'mix');
 
 for (const id of ['volume', 'sensitivity', 'glow', 'dim', 'stars', 'dancerSize', 'dancerDepth', 'dancerMotion', 'dancerGlow']) $(id).addEventListener('input', syncSettings);
+for (const id of ['showText', 'sceneTitle', 'sceneSubtitle', 'sceneAuthor', 'textPosition', 'textColor', 'exportSize', 'exportFps', 'exportMode']) $(id).addEventListener('input', syncSettings);
 $('dancerMode').addEventListener('change', syncSettings);
 for (const id of ['leftEnergyMethod', 'rightEnergyMethod']) $(id).addEventListener('change', syncSettings);
 $('bpmMethod').addEventListener('change', () => {
@@ -490,7 +636,9 @@ $('bpmMethod').addEventListener('change', () => {
     setStatus('bpmStatus', '已切换方法，点击重新分析 BPM。');
   } else setStatus('bpmStatus', '当前显示上次结果，点击重新分析 BPM 更新。');
 });
-$('reanalyzeBpm').addEventListener('click', () => void runBpmAnalysis());
+$('reanalyzeBpm').addEventListener('click', () => { state.bpmPromise = runBpmAnalysis(); });
+$('exportVideo').addEventListener('click', () => void startExport());
+$('cancelExport').addEventListener('click', () => state.exportController?.abort());
 $('audioFile').addEventListener('change', event => {
   const file = event.target.files?.[0];
   event.target.value = '';
@@ -534,6 +682,7 @@ audio.addEventListener('error', () => {
 });
 window.addEventListener('resize', resize);
 window.addEventListener('pagehide', () => {
+  state.exportController?.abort();
   state.analysisToken++;
   state.selection?.abort();
   audio.pause();
