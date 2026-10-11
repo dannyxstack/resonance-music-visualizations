@@ -12,10 +12,9 @@ export function meteorAt(slot, time, interval, width, bounds) {
   if (progress < 0 || progress > 1) return null;
 
   const skyHeight = Math.max(1, bounds.bottom - bounds.top);
-  const direction = randomFor(slot, 3) < 0.5 ? -1 : 1;
   const startX = width * (0.22 + randomFor(slot, 4) * 0.56);
   const startY = bounds.top + skyHeight * (0.08 + randomFor(slot, 5) * 0.34);
-  const travelX = direction * width * (0.11 + randomFor(slot, 6) * 0.12);
+  const travelX = -width * (0.11 + randomFor(slot, 6) * 0.12);
   const travelY = skyHeight * (0.19 + randomFor(slot, 7) * 0.21);
   const trail = Math.min(progress * 2.2, 1) * (0.26 + randomFor(slot, 8) * 0.18);
 

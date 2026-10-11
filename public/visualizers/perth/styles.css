@@ -159,20 +159,6 @@ button:disabled {
   background: #162839;
 }
 
-.mode-toggle.is-vizzy {
-  border-color: rgb(125 207 255 / 62%);
-  background: #1b3c55;
-  box-shadow: 0 0 18px rgb(125 207 255 / 18%);
-}
-
-.vizzy-control {
-  opacity: 0.55;
-}
-
-.controls.is-vizzy .vizzy-control {
-  opacity: 1;
-}
-
 .advanced-controls {
   grid-column: 1 / -1;
   display: grid;

@@ -3,10 +3,17 @@ import { companies } from '../config/companies';
 import { connections } from '../config/connections';
 import type { AudioFeatures } from '../types/audio';
 import type { TempoAnalysis } from '../types/tempo';
+import type { MotionType } from '../types/company';
 import { ParticleEngine } from '../particles/ParticleEngine';
+import { beatCycleStepAt, logoActionAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue } from './logoMotion';
 import { energyByMethod } from '../../../../public/visualizers/shared/analysis.js';
 
 const clamp = (value: number): number => Math.max(0, Math.min(1, value));
+const rayColors: Partial<Record<MotionType, string>> = {
+  whiteRays: '#ffffff',
+  yellowRays: '#ffe45a',
+  purpleRays: '#c78cff',
+};
 
 function loadImage(src: string): HTMLImageElement {
   const image = new Image();
@@ -19,6 +26,9 @@ export class CanvasMapScene {
   private readonly map = loadImage(bayAreaBackground);
   private readonly logos = new Map(companies.map(company => [company.id, company.logo ? loadImage(company.logo) : null]));
   private readonly energy = new Map<string, number>();
+  private fallbackHueBeats = 0;
+  private previousBeatSignal = false;
+  private previousTime = 0;
 
   render(
     ctx: CanvasRenderingContext2D,
@@ -72,6 +82,43 @@ export class CanvasMapScene {
       ctx.globalAlpha = 1;
     }
 
+    const actionBeat = motionBeatAt(time, tempo, Math.max(lowLevel, features.onset, features.beat ? 1 : 0), playing);
+    const rhythmPulse = rayPulseAt(time, tempo, Math.max(lowLevel, features.onset, features.beat ? 1 : 0), playing);
+    if (time < this.previousTime - .05) {
+      this.fallbackHueBeats = 0;
+      this.previousBeatSignal = false;
+    }
+    this.previousTime = time;
+    const beatSignal = playing && features.beat;
+    if (!tempo && beatSignal && !this.previousBeatSignal) this.fallbackHueBeats += 1;
+    this.previousBeatSignal = beatSignal;
+    const hueStep = beatCycleStepAt(time, tempo, this.fallbackHueBeats) % 6;
+    if (rhythmPulse > .03) {
+      const strength = rhythmPulse * (reducedMotion ? .35 : 1);
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (const source of companies) {
+        const color = rayColors[source.motion];
+        if (!color) continue;
+        ctx.strokeStyle = color;
+        ctx.shadowColor = color;
+        for (const target of rayTargets(source, companies, actionBeat.index)) {
+          const x1 = source.x * width, y1 = source.y * height;
+          const x2 = target.x * width, y2 = target.y * height;
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+          ctx.globalAlpha = strength * .16;
+          ctx.lineWidth = 4;
+          ctx.shadowBlur = 4;
+          ctx.stroke();
+          ctx.globalAlpha = Math.min(1, strength * 1.4);
+          ctx.lineWidth = 2.4;
+          ctx.shadowBlur = 0;
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
     const unit = Math.max(18, Math.min(width * .033, height * .059));
     for (const company of companies) {
       const live = clamp(features[company.frequencyBand] * company.intensity + features.onset * .12);
@@ -91,48 +138,69 @@ export class CanvasMapScene {
         ? lowLevel : tempo ? beat : clamp(features.onset);
       const motion = reducedMotion ? 0 : 1;
       const hash = Array.from(company.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-      let x = company.x * width, y = company.y * height;
-      if (company.motion === 'shake') {
-        x += Math.sin(time * 28 + hash) * value * unit * .24 * motion;
-        y += Math.cos(time * 34 + hash) * value * unit * .2 * motion;
-      }
-      if (company.motion === 'beatJump') y -= pulse * unit * .65 * motion;
-      if (company.motion === 'beatSideStep') {
-        const direction = beatIndex % 2 ? 1 : -1;
-        x += direction * pulse * unit * .65 * motion;
-        y -= pulse * unit * .12 * motion;
+      const action = logoActionAt(company.motion, time,
+        company.motion === 'shake' ? rhythmPulse : actionBeat.pulse,
+        actionBeat.index, unit, reducedMotion, hash);
+      const anchorX = company.x * width, anchorY = company.y * height;
+      const x = anchorX + action.offsetX, y = anchorY + action.offsetY;
+      if ((company.motion === 'beatJump' || company.motion === 'beatSideStep') && actionBeat.pulse > .08) {
+        ctx.save();
+        ctx.globalAlpha = actionBeat.pulse * .48;
+        ctx.strokeStyle = company.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(anchorX, anchorY); ctx.lineTo(x, y); ctx.stroke();
+        ctx.beginPath(); ctx.arc(anchorX, anchorY, unit * .38, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
       }
       const breath = company.motion === 'breath' ? Math.sin(time * 1.6 + hash) * .075 * motion : 0;
       const baseRadius = unit * .5 * (1 + value * .08 * intensity + breath);
       const radius = baseRadius * (1
         + (company.motion === 'pulse' ? pulse * .24 : 0)
         + (company.motion === 'beatGrow' ? pulse * .42 : 0));
+      const glowLevel = company.motion === 'glow'
+        ? clamp((.12 + value * .12 + rhythmPulse * (reducedMotion ? .27 : .76)) * intensity)
+        : 0;
+      const haloColor = company.motion === 'haloHueShift'
+        ? shiftHexHue(company.color, hueStep * 60)
+        : company.color;
       ctx.save();
       ctx.translate(x, y);
-      ctx.shadowColor = company.color;
-      ctx.shadowBlur = company.motion === 'glow' ? 14 + value * 55 * intensity : 8 + value * 24 * intensity;
-      ctx.globalAlpha = company.motion === 'glow' ? .34 + value * .5 : .3 + value * .3;
-      ctx.fillStyle = company.color;
+      ctx.shadowColor = haloColor;
+      ctx.shadowBlur = company.motion === 'glow' ? 4 + glowLevel * 55 : 8 + value * 24 * intensity;
+      ctx.globalAlpha = company.motion === 'glow' ? .08 + glowLevel * .88 : .3 + value * .3;
+      ctx.fillStyle = haloColor;
       ctx.beginPath(); ctx.arc(0, 0, radius * 1.7, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
       if (company.motion === 'glow') {
         ctx.strokeStyle = company.color;
-        ctx.globalAlpha = .25 + value * .65;
-        ctx.lineWidth = 2 + value * 4;
-        ctx.beginPath(); ctx.arc(0, 0, radius * (1.5 + value * .45), 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = .1 + glowLevel * .85;
+        ctx.lineWidth = 1 + glowLevel * 4;
+        ctx.beginPath(); ctx.arc(0, 0, radius * (1.4 + glowLevel * .35), 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
       }
       if (company.motion === 'orbit') {
-        ctx.strokeStyle = company.color;
-        ctx.globalAlpha = .3 + value * .4;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath(); ctx.arc(0, 0, radius * 1.55, 0, Math.PI * 2); ctx.stroke();
-        const angle = time * (hash % 2 ? 1.8 : -1.8) + hash;
-        const orbitRadius = radius * 1.55;
-        ctx.fillStyle = company.color;
-        ctx.beginPath(); ctx.arc(Math.cos(angle) * orbitRadius, Math.sin(angle) * orbitRadius, 2.4 + value * 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
+        const phase = time * (hash % 2 ? 1.8 : -1.8) * (reducedMotion ? .35 : 1) + hash;
+        const orbitRadius = radius * 2;
+        ctx.font = `900 ${Math.max(12, radius * 1.1)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffd75e';
+        ctx.strokeStyle = '#fff0a3';
+        ctx.lineWidth = .45;
+        ctx.shadowColor = '#ffc533';
+        ctx.shadowBlur = 7;
+        for (let symbol = 0; symbol < 4; symbol += 1) {
+          const angle = phase + symbol * Math.PI / 2;
+          ctx.save();
+          ctx.translate(Math.cos(angle) * orbitRadius, Math.sin(angle) * orbitRadius);
+          // The glyph's bottom points inward at every position around the logo.
+          ctx.rotate(angle + Math.PI / 2);
+          ctx.fillText('$', 0, 0);
+          ctx.strokeText('$', 0, 0);
+          ctx.restore();
+        }
+        ctx.shadowBlur = 0;
       }
       ctx.fillStyle = '#0d1624';
       ctx.beginPath();
@@ -150,7 +218,7 @@ export class CanvasMapScene {
         }
       } else ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = company.color;
+      ctx.strokeStyle = haloColor;
       ctx.lineWidth = 1.2 + value * 1.6;
       ctx.stroke();
       if (company.motion === 'ripple') {
@@ -164,8 +232,16 @@ export class CanvasMapScene {
       }
       const logo = this.logos.get(company.id);
       ctx.save();
-      if (company.motion === 'spin') ctx.rotate(time * (hash % 2 ? 1.8 : -1.8) * motion);
-      if (company.motion === 'beatTilt') ctx.rotate((beatIndex % 2 ? 1 : -1) * pulse * .65 * motion);
+      if (company.motion === 'spin' || company.motion === 'spin2x' || company.motion === 'beatTilt') {
+        ctx.rotate(action.rotation);
+        ctx.strokeStyle = company.color;
+        ctx.lineWidth = 2.4;
+        ctx.globalAlpha = .9;
+        ctx.beginPath(); ctx.arc(0, 0, radius * 1.3, -2.4, -.3); ctx.stroke();
+        ctx.fillStyle = '#f8fbff';
+        ctx.beginPath(); ctx.arc(Math.cos(-.3) * radius * 1.3, Math.sin(-.3) * radius * 1.3, 2.7, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       if (logo?.complete && logo.naturalWidth) {
         const logoRadius = company.motion === 'beatGrow' ? baseRadius : radius;
         const contentSize = logoRadius * 1.43 * (company.logoScale || 1) * (company.motion === 'beatLogoGrow' ? 1 + pulse * .68 : 1);

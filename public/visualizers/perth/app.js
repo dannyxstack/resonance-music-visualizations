@@ -15,7 +15,6 @@ const cityImageInput = document.querySelector("#cityImage");
 const playButton = document.querySelector("#playPause");
 const controlsPanel = document.querySelector(".controls");
 const advancedToggle = document.querySelector("#advancedToggle");
-const analysisModeToggle = document.querySelector("#analysisModeToggle");
 const detectBeatButton = document.querySelector("#detectBeat");
 const beatRows = [...document.querySelectorAll("[data-beat-track]")];
 const boostInput = document.querySelector("#lightningBoost");
@@ -23,6 +22,7 @@ const lightningEnabledInput = document.querySelector("#lightningEnabled");
 const lightningFrequencyInput = document.querySelector("#lightningFrequency");
 const lightningFrequencyValue = document.querySelector("#lightningFrequencyValue");
 const backgroundBrightnessInput = document.querySelector("#backgroundBrightness");
+const reflectionsEnabledInput = document.querySelector("#reflectionsEnabled");
 const starsEnabledInput = document.querySelector("#starsEnabled");
 const starCountInput = document.querySelector("#starCount");
 const starCountValue = document.querySelector("#starCountValue");
@@ -31,8 +31,6 @@ const starSpeedValue = document.querySelector("#starSpeedValue");
 const meteorsEnabledInput = document.querySelector("#meteorsEnabled");
 const meteorIntervalInput = document.querySelector("#meteorInterval");
 const meteorIntervalValue = document.querySelector("#meteorIntervalValue");
-const vizzySensitivityInput = document.querySelector("#vizzySensitivity");
-const vizzyBandsInput = document.querySelector("#vizzyBands");
 const skyTitleEnabledInput = document.querySelector("#skyTitleEnabled");
 const skyTitleTextInput = document.querySelector("#skyTitleText");
 const skyTitleBeatTrackInput = document.querySelector("#skyTitleBeatTrack");
@@ -135,7 +133,6 @@ let audioContext;
 let analyser;
 let sourceNode;
 let frequencyData = new Uint8Array(0);
-let timeData = new Uint8Array(0);
 let isPlaying = false;
 let lightningBand = "treble";
 let buildings = [];
@@ -144,10 +141,8 @@ let meteorClock = 0;
 let bolts = [];
 let flash = 0;
 let lastTime = performance.now();
-let analysisMode = "classic";
 let smoothed = { bass: 0, mid: 0, treble: 0 };
 let previousBandEnergy = 0;
-let vizzyState = createVizzyState(0);
 let selectedAudioFile = null;
 let beatTracks = {};
 let skyTitleHueOffset = 0;
@@ -208,18 +203,6 @@ beatTracks = Object.fromEntries(beatTrackDefinitions.map((definition) => {
   }];
 }));
 
-function createVizzyState(bandCount) {
-  return {
-    bandCount,
-    ranges: [],
-    centers: [],
-    energies: new Float32Array(bandCount),
-    previous: new Float32Array(bandCount),
-    baselines: new Float32Array(bandCount),
-    hits: new Float32Array(bandCount),
-  };
-}
-
 // x,y are the building rectangle's bottom-left coordinates in image-relative units.
 const imageBuildings = [
   { name: "1", x: 0.044, y: 0.800, width: 0.028, height: 0.245, cols: 5, rows: 10 },
@@ -230,6 +213,11 @@ const imageBuildings = [
   { name: "6", x: 0.324, y: 0.788, width: 0.053, height: 0.113, cols: 4, rows: 10 },
 
   { name: "6r", x: 0.379, y: 0.734, width: 0.022, height: 0.033, cols: 2, rows: 3 },
+
+  // no use
+  { name: "21", x: 0.863, y: 0.807, width: 0.011, height: 0.01, cols: 1, rows: 1 },
+  { name: "22", x: 0.863, y: 0.807, width: 0.011, height: 0.01, cols: 1, rows: 1 },
+  { name: "23", x: 0.935, y: 0.812, width: 0.027, height: 0.24, cols: 3, rows: 21 },
 
   // BHP
   { name: "7", x: 0.386, y: 0.795, width: 0.107, height: 0.343, cols: 8, rows: 16 },
@@ -254,10 +242,6 @@ const imageBuildings = [
   { name: "19r", x: 0.836, y: 0.804, width: 0.033, height: 0.05, cols: 3, rows: 6 },
   { name: "20", x: 0.865, y: 0.807, width: 0.078, height: 0.24, cols: 6, rows: 15 },
 
-  // no use
-  { name: "21", x: 0.863, y: 0.807, width: 0.011, height: 0.01, cols: 1, rows: 1 },
-  { name: "22", x: 0.863, y: 0.807, width: 0.011, height: 0.01, cols: 1, rows: 1 },
-  { name: "23", x: 0.935, y: 0.812, width: 0.027, height: 0.24, cols: 3, rows: 21 },
 ];
 
 skylineImage.addEventListener("load", () => {
@@ -273,14 +257,13 @@ function setupAudio() {
   audioContext = new AudioContext();
   analyser = audioContext.createAnalyser();
   analyser.fftSize = 2048;
-  analyser.smoothingTimeConstant = isVizzyMode() ? 0.18 : 0.72;
+  analyser.smoothingTimeConstant = 0.72;
 
   sourceNode = audioContext.createMediaElementSource(audio);
   sourceNode.connect(analyser);
   analyser.connect(audioContext.destination);
 
   frequencyData = new Uint8Array(analyser.frequencyBinCount);
-  timeData = new Uint8Array(analyser.fftSize);
 }
 
 function resize() {
@@ -452,108 +435,6 @@ function getEnergy(startHz, endHz) {
   }
 
   return count ? sum / count / 255 : 0;
-}
-
-function ensureVizzyState() {
-  const bandCount = getVizzyBandCount();
-
-  if (vizzyState.bandCount === bandCount) return;
-
-  const minHz = 35;
-  const maxHz = 12000;
-  const minLog = Math.log(minHz);
-  const maxLog = Math.log(maxHz);
-  vizzyState = createVizzyState(bandCount);
-
-  for (let i = 0; i < bandCount; i += 1) {
-    const startRatio = i / bandCount;
-    const endRatio = (i + 1) / bandCount;
-    const centerRatio = (i + 0.5) / bandCount;
-    const startHz = Math.exp(minLog + (maxLog - minLog) * startRatio);
-    const endHz = Math.exp(minLog + (maxLog - minLog) * endRatio);
-    const centerHz = Math.exp(minLog + (maxLog - minLog) * centerRatio);
-    vizzyState.ranges.push([startHz, endHz]);
-    vizzyState.centers.push(centerHz);
-  }
-}
-
-function getFrequencySliceEnergy(startHz, endHz) {
-  if (!audioContext || !frequencyData.length) return 0;
-
-  const nyquist = audioContext.sampleRate / 2;
-  const start = clamp(Math.floor((startHz / nyquist) * frequencyData.length), 0, frequencyData.length - 1);
-  const end = clamp(Math.ceil((endHz / nyquist) * frequencyData.length), start, frequencyData.length - 1);
-  let sum = 0;
-  let count = 0;
-
-  for (let i = start; i <= end; i += 1) {
-    sum += Math.pow(frequencyData[i] / 255, 1.18);
-    count += 1;
-  }
-
-  return count ? sum / count : 0;
-}
-
-function summarizeVizzyRange(minHz, maxHz) {
-  let energySum = 0;
-  let hitSum = 0;
-  let count = 0;
-
-  for (let i = 0; i < vizzyState.bandCount; i += 1) {
-    const center = vizzyState.centers[i];
-    if (center < minHz || center > maxHz) continue;
-
-    energySum += vizzyState.energies[i];
-    hitSum += vizzyState.hits[i];
-    count += 1;
-  }
-
-  if (!count) return { energy: 0, hit: 0 };
-
-  return {
-    energy: energySum / count,
-    hit: hitSum / count,
-  };
-}
-
-function analyzeVizzyBands() {
-  ensureVizzyState();
-
-  const sensitivity = getVizzySensitivity();
-  let globalHit = 0;
-
-  for (let i = 0; i < vizzyState.bandCount; i += 1) {
-    const [startHz, endHz] = vizzyState.ranges[i];
-    const centerHz = vizzyState.centers[i];
-    const tilt = Math.pow(centerHz / 1000, -0.08);
-    const current = clamp(getFrequencySliceEnergy(startHz, endHz) * tilt, 0, 1);
-    const flux = Math.max(0, current - vizzyState.previous[i]);
-    const baseline = vizzyState.baselines[i] * 0.965 + flux * 0.035;
-    const threshold = baseline * (1.65 / sensitivity) + 0.0035 / sensitivity;
-    const hit = clamp((flux - threshold) * sensitivity * 18, 0, 1);
-
-    vizzyState.energies[i] = current;
-    vizzyState.previous[i] = current;
-    vizzyState.baselines[i] = baseline;
-    vizzyState.hits[i] = Math.max(hit, vizzyState.hits[i] * 0.74);
-    globalHit = Math.max(globalHit, vizzyState.hits[i]);
-  }
-
-  const bass = summarizeVizzyRange(40, 180);
-  const mid = summarizeVizzyRange(180, 2800);
-  const treble = summarizeVizzyRange(2800, 12000);
-
-  return {
-    bass: clamp(bass.energy * 0.62 + bass.hit * 0.85, 0, 1),
-    mid: clamp(mid.energy * 0.5 + mid.hit * 0.9, 0, 1),
-    treble: clamp(treble.energy * 0.4 + treble.hit, 0, 1),
-    onset: {
-      bass: bass.hit,
-      mid: mid.hit,
-      treble: treble.hit,
-      global: globalHit,
-    },
-  };
 }
 
 async function renderFilteredMonoBuffer(audioBuffer, filterType, frequency, q = 1) {
@@ -789,14 +670,6 @@ function updateLightningFrequencyLabel() {
   lightningFrequencyValue.textContent = multiplier >= 1 ? `${multiplier}x` : `1/${1 / multiplier}x`;
 }
 
-function getVizzySensitivity() {
-  return Number(vizzySensitivityInput.value);
-}
-
-function getVizzyBandCount() {
-  return Number(vizzyBandsInput.value);
-}
-
 function isSkyTitleEnabled() {
   return skyTitleEnabledInput.checked;
 }
@@ -863,25 +736,6 @@ function getBuildingBeatBoost(buildingName) {
   return boost;
 }
 
-function isVizzyMode() {
-  return analysisMode === "vizzy";
-}
-
-function setAnalysisMode(mode) {
-  analysisMode = mode;
-  const enabled = isVizzyMode();
-  analysisModeToggle.textContent = enabled ? "Vizzy-like" : "Classic";
-  analysisModeToggle.classList.toggle("is-vizzy", enabled);
-  analysisModeToggle.setAttribute("aria-pressed", String(enabled));
-  controlsPanel.classList.toggle("is-vizzy", enabled);
-
-  if (analyser) {
-    analyser.smoothingTimeConstant = enabled ? 0.18 : 0.72;
-  }
-
-  previousBandEnergy = 0;
-}
-
 function setPlayButtonState(playing) {
   const label = playing ? "Pause" : "Play";
   playButton.classList.toggle("is-playing", playing);
@@ -898,23 +752,21 @@ function setAdvancedCollapsed(collapsed) {
 }
 
 function analyzeAudio(time = audio.currentTime) {
-  if (!analyser) return { bass: 0, mid: 0, treble: 0, onset: { bass: 0, mid: 0, treble: 0, global: 0 } };
+  if (!analyser) return { bass: 0, mid: 0, treble: 0, beat: 0 };
 
   analyser.getByteFrequencyData(frequencyData);
-  analyser.getByteTimeDomainData(timeData);
 
   const classic = {
     bass: getEnergy(35, 250),
     mid: getEnergy(250, 2600),
     treble: getEnergy(2600, 12000),
   };
-  const raw = isVizzyMode() ? analyzeVizzyBands() : classic;
-  const smoothing = isVizzyMode() ? 0.46 : 0.78;
+  const smoothing = 0.78;
   const incoming = 1 - smoothing;
   const beat = isPlaying ? beatEnergyAt(commonBpm, time) : 0;
 
   for (const [index, band] of ["bass", "mid", "treble"].entries()) {
-    smoothed[band] = smoothed[band] * smoothing + raw[band] * incoming;
+    smoothed[band] = smoothed[band] * smoothing + classic[band] * incoming;
     const meterEnergy = energyByMethod(meterMethodInputs[band].value, smoothed[band], beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope),
       { drive: lowDrive, time, index, count: 3, playing: isPlaying });
     meterEls[band].style.setProperty("--level", meterEnergy.toFixed(3));
@@ -926,7 +778,7 @@ function analyzeAudio(time = audio.currentTime) {
       { drive: lowDrive, time, index, count: 3, playing: isPlaying })]));
   return {
     ...sceneEnergy,
-    onset: raw.onset || { bass: 0, mid: 0, treble: 0, global: 0 },
+    beat,
   };
 }
 
@@ -1088,16 +940,16 @@ function drawSkyTitle(dt) {
   ctx.restore();
 }
 
-function drawSkyline(energy) {
+function drawSkyline(energy, time) {
   if (skylineImage.complete && skylineImage.naturalWidth) {
-    drawImageSkyline(energy);
+    drawImageSkyline(energy, time);
     return;
   }
 
-  drawGeneratedSkyline(energy);
+  drawGeneratedSkyline(energy, time);
 }
 
-function drawImageSkyline(energy) {
+function drawImageSkyline(energy, time) {
   const placement = getSkylinePlacement();
   const { dx, dy, dw, dh, sx, sy, sw, sh } = placement;
   const base = getBaseBrightness();
@@ -1112,9 +964,10 @@ function drawImageSkyline(energy) {
   ctx.fillStyle = `rgb(0 5 12 / ${night})`;
   ctx.fillRect(dx, dy, dw, dh);
 
+  const reflectedWindows = reflectionsEnabledInput.checked ? [] : null;
   for (const building of buildings) {
-    const towerEnergy = getTowerEnergy(building.bandIndex, buildings.length);
-    drawImageBuildingWindows(building, placement, towerEnergy, energy);
+    const towerEnergy = getTowerEnergy(building.bandIndex, buildings.length, energy.beat, time);
+    drawImageBuildingWindows(building, placement, towerEnergy, energy, reflectedWindows);
   }
 
   const waterGlow = ctx.createLinearGradient(0, dy + dh * 0.78, 0, dy + dh);
@@ -1122,6 +975,33 @@ function drawImageSkyline(energy) {
   waterGlow.addColorStop(1, `rgb(1 4 8 / ${Math.max(0.08, 0.72 - base * 0.72 - flash * 0.32)})`);
   ctx.fillStyle = waterGlow;
   ctx.fillRect(dx, dy + dh * 0.72, dw, dh * 0.28);
+
+  if (reflectedWindows) drawWaterReflections(reflectedWindows, placement);
+}
+
+function drawWaterReflections(windows, { dx, dy, dw, dh }) {
+  const waterY = dy + dh * 0.845;
+  const waterDepth = sceneHeight - waterY;
+  if (waterDepth <= 0) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(Math.max(0, dx), Math.max(0, waterY), Math.min(sceneWidth, dx + dw) - Math.max(0, dx), waterDepth);
+  ctx.clip();
+
+  for (const window of windows) {
+    const depth = (waterY - window.y - window.height * 0.5) * 0.24;
+    if (depth < 0 || depth >= waterDepth) continue;
+    const fade = Math.pow(1 - depth / waterDepth, 1.4);
+    const opacity = window.alpha * fade * 0.11;
+    const y = waterY + depth;
+    ctx.fillStyle = window.color;
+    ctx.globalAlpha = opacity;
+    ctx.fillRect(window.x, y, window.width, Math.max(1.5, window.height * 0.65));
+    ctx.globalAlpha = opacity * 0.35;
+    ctx.fillRect(window.x, y + window.height, window.width, Math.max(2, window.height * 1.2));
+  }
+  ctx.restore();
 }
 
 function getSkylinePlacement() {
@@ -1230,7 +1110,7 @@ function drawBuildingTooltip() {
   ctx.restore();
 }
 
-function drawImageBuildingWindows(building, placement, towerEnergy, energy) {
+function drawImageBuildingWindows(building, placement, towerEnergy, energy, reflectedWindows) {
   const rows = Math.max(1, Math.round(toFiniteNumber(building.rows, 6)));
   const cols = Math.max(1, Math.round(toFiniteNumber(building.cols, 3)));
   const beatBoost = getBuildingBeatBoost(building.name);
@@ -1258,26 +1138,25 @@ function drawImageBuildingWindows(building, placement, towerEnergy, energy) {
 
       const floorStrength = isLitFloor ? 0.5 + combinedEnergy * 0.75 : combinedEnergy * 0.2;
       const alpha = Math.min(0.96, floorStrength + flash * 0.18 + Math.max(0, noise) * 0.14 + beatBoost * 0.25);
-      ctx.fillStyle = isBeatBuilding
-        ? `rgb(255 236 170 / ${alpha})`
-        : `rgb(255 217 143 / ${alpha})`;
-      ctx.fillRect(
-        rect.x + padX + col * (windowW + gapX),
-        rect.y + padY + row * (windowH + gapY),
-        windowW,
-        windowH,
-      );
+      const x = rect.x + padX + col * (windowW + gapX);
+      const y = rect.y + padY + row * (windowH + gapY);
+      const color = isBeatBuilding ? "rgb(255 236 170)" : "rgb(255 217 143)";
+      ctx.fillStyle = isBeatBuilding ? `rgb(255 236 170 / ${alpha})` : `rgb(255 217 143 / ${alpha})`;
+      ctx.fillRect(x, y, windowW, windowH);
+      if (reflectedWindows && alpha > 0.2) {
+        reflectedWindows.push({ x, y, width: windowW, height: windowH, alpha, color });
+      }
     }
   }
 
   ctx.restore();
 }
 
-function drawGeneratedSkyline(energy) {
+function drawGeneratedSkyline(energy, time) {
   const h = sceneHeight;
 
   for (const building of buildings) {
-    const towerEnergy = getTowerEnergy(building.bandIndex, buildings.length);
+    const towerEnergy = getTowerEnergy(building.bandIndex, buildings.length, energy.beat, time);
     const x = building.x;
     const y = building.y;
     const width = building.width;
@@ -1308,26 +1187,10 @@ function drawGeneratedSkyline(energy) {
   ctx.fillRect(0, h - 140, sceneWidth, 150);
 }
 
-function getTowerEnergy(index, total = buildings.length) {
-  if (!frequencyData.length || total <= 0) return 0;
+function getTowerEnergy(index, total, beat, time) {
+  if (!isPlaying || !frequencyData.length || total <= 0) return 0;
 
   const safeIndex = clamp(Math.round(toFiniteNumber(index, 0)), 0, total - 1);
-
-  if (isVizzyMode() && vizzyState.bandCount > 0) {
-    const bandsPerTower = Math.max(1, Math.ceil(vizzyState.bandCount / total));
-    const start = clamp(Math.floor((safeIndex / total) * vizzyState.bandCount), 0, vizzyState.bandCount - 1);
-    const end = Math.min(vizzyState.bandCount - 1, start + bandsPerTower - 1);
-    let sum = 0;
-    let count = 0;
-
-    for (let i = start; i <= end; i += 1) {
-      sum += vizzyState.energies[i] * 0.45 + vizzyState.hits[i] * 0.95;
-      count += 1;
-    }
-
-    return count ? clamp(sum / count, 0, 1) : 0;
-  }
-
   const usableBins = Math.max(1, Math.floor(frequencyData.length * 0.85));
   const span = Math.max(2, Math.ceil(usableBins / total));
   const start = Math.min(usableBins - 1, Math.floor((safeIndex / total) * usableBins));
@@ -1340,7 +1203,9 @@ function getTowerEnergy(index, total = buildings.length) {
     count += 1;
   }
 
-  return count ? sum / count / 255 : 0;
+  const live = count ? sum / count / 255 : 0;
+  return energyByMethod(sceneEnergyMethodInput.value, live, beat, Boolean(commonBpm), lowLevel, Boolean(lowEnvelope),
+    { drive: lowDrive, time, index: safeIndex, count: total, playing: isPlaying });
 }
 
 function drawWindows(building, topY, height, towerEnergy, energy) {
@@ -1382,22 +1247,11 @@ function maybeCreateLightning(energy) {
   }
 
   const frequencyMultiplier = getLightningFrequencyMultiplier();
-  const onset = energy.onset?.[lightningBand] || 0;
-  const chosen = isVizzyMode() ? clamp(onset * 0.9 + energy[lightningBand] * 0.18, 0, 1) : energy[lightningBand];
+  const chosen = energy[lightningBand];
   const jump = chosen - previousBandEnergy;
-  const baseThreshold = isVizzyMode()
-    ? lightningBand === "bass"
-      ? 0.055
-      : lightningBand === "mid"
-        ? 0.048
-        : 0.04
-    : lightningBand === "bass"
-      ? 0.1
-      : lightningBand === "mid"
-        ? 0.085
-        : 0.065;
+  const baseThreshold = lightningBand === "bass" ? 0.1 : lightningBand === "mid" ? 0.085 : 0.065;
   const threshold = baseThreshold / Math.sqrt(frequencyMultiplier);
-  const chance = Math.min(0.9, chosen * (isVizzyMode() ? 0.42 : 0.35) * frequencyMultiplier);
+  const chance = Math.min(0.9, chosen * 0.35 * frequencyMultiplier);
 
   if ((jump > threshold || Math.random() < chance * 0.018) && bolts.length < 4) {
     bolts.push(makeBolt(chosen));
@@ -1518,7 +1372,7 @@ function renderScene(time, dt) {
   flash = isLightningEnabled() ? Math.max(0, flash - dt * 2.7) : 0;
 
   drawBackground(energy);
-  drawSkyline(energy);
+  drawSkyline(energy, time);
   drawStars(dt);
   drawMeteors();
   drawSkyTitle(dt);
@@ -1589,6 +1443,7 @@ fileInput.addEventListener("change", async () => {
   lowEnvelope = null;
   lowDrive = null;
   lowLevel = 0;
+  smoothed = { bass: 0, mid: 0, treble: 0 };
   lowEnvelopeStatus.textContent = '等待音频加载…';
   commonBpm = null;
   showCommonBpm(null, '等待音频加载…');
@@ -1663,10 +1518,6 @@ advancedToggle.addEventListener("click", () => {
   setAdvancedCollapsed(!controlsPanel.classList.contains("is-collapsed"));
 });
 
-analysisModeToggle.addEventListener("click", () => {
-  setAnalysisMode(isVizzyMode() ? "classic" : "vizzy");
-});
-
 detectBeatButton.addEventListener("click", async () => {
   if (!selectedAudioFile) return;
   const selection = audioSelection;
@@ -1727,10 +1578,6 @@ starCountInput.addEventListener("input", () => {
 
 starSpeedInput.addEventListener("input", updateStarControlLabels);
 meteorIntervalInput.addEventListener("input", updateMeteorIntervalLabel);
-
-vizzyBandsInput.addEventListener("input", () => {
-  vizzyState = createVizzyState(0);
-});
 
 window.addEventListener("keydown", (event) => {
   if (event.code !== "Space" || event.repeat || shouldIgnoreSpaceToggle(event)) return;
@@ -1802,7 +1649,6 @@ window.addEventListener("resize", resize);
 updateLightningFrequencyLabel();
 updateStarControlLabels();
 updateMeteorIntervalLabel();
-setAnalysisMode("classic");
 setAdvancedCollapsed(false);
 resize();
 registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });

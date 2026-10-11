@@ -112,8 +112,8 @@ export function CompanyNode({
     const motionBoost = config.motion === "pulse" ? 1.4 : config.motion === "breath" ? 0.9 : 1;
     const scale = 1 + energy * 0.09 * motionScale * motionBoost + breath + pulse;
     const rotate =
-      animationMode === "expressive-logo" && config.motion === "spin"
-        ? Math.sin(now * 0.0018) * 2 * energy * motionScale
+      animationMode === "expressive-logo" && (config.motion === "spin" || config.motion === "spin2x")
+        ? Math.sin(now * 0.0018 * (config.motion === "spin2x" ? 2 : 1)) * 2 * energy * motionScale
         : 0;
     const shakeProfile = shakeProfileRef.current;
     if (!shakeProfile) {
@@ -140,8 +140,8 @@ export function CompanyNode({
         ? rotateProfile.phase + rotateProfile.direction * (now * rotateProfile.orbitSpeed + energy * 260)
         : 0;
     let logoRotate =
-      config.motion === "spin" && !reducedMotion
-        ? rotateProfile.direction * -1 * (rotateProfile.phase * 0.6 + now * rotateProfile.logoSpeed)
+      (config.motion === "spin" || config.motion === "spin2x") && !reducedMotion
+        ? rotateProfile.direction * -1 * (rotateProfile.phase * 0.6 + now * rotateProfile.logoSpeed * (config.motion === "spin2x" ? 2 : 1))
         : 0;
     let beatJump = 0;
     let beatSideStep = 0;

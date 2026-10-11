@@ -347,11 +347,13 @@ h1 {
   scale: calc(1.28 + var(--energy) * 0.42);
 }
 
-.motion-spin .node-halo {
+.motion-spin .node-halo,
+.motion-spin2x .node-halo {
   opacity: calc(0.18 + var(--energy) * 0.28);
 }
 
-.motion-spin .node-glyph::before {
+.motion-spin .node-glyph::before,
+.motion-spin2x .node-glyph::before {
   border-color: color-mix(in srgb, var(--node-color), white 22%);
 }
 
@@ -554,29 +556,6 @@ h1 {
   accent-color: #dbe7f7;
 }
 
-.catalog-icon-button {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid rgba(226, 235, 255, 0.16);
-  border-radius: 6px;
-  color: #eef3fb;
-  background: rgba(222, 232, 247, 0.11);
-  cursor: pointer;
-}
-
-.catalog-icon-button[aria-expanded="true"] {
-  color: #07101a;
-  background: #eef3fb;
-}
-
-.fa-list-icon {
-  width: 16px;
-  height: 16px;
-}
-
 .error-message {
   margin: 0;
   color: #ffb7b7;
@@ -651,6 +630,13 @@ h1 {
   backdrop-filter: blur(18px);
   box-shadow: 0 22px 68px rgba(0, 0, 0, 0.42);
   pointer-events: auto;
+}
+
+.catalog-title {
+  margin: 0;
+  padding: 12px;
+  color: #f5f7fb;
+  font-size: 16px;
 }
 
 .catalog-header,
@@ -834,7 +820,8 @@ h1 {
 .control-zone{width:min(100%,1240px);max-height:44dvh;overflow:auto;justify-self:center;padding:0 12px 12px}
 .control-zone .controls{margin:0}
 .control-zone .company-catalog{position:relative;right:auto;bottom:auto;justify-items:stretch;margin-top:10px}
-.control-zone .catalog-panel{width:100%;max-height:300px}
+.control-zone .catalog-panel{width:100%;max-height:none}
+.control-zone .catalog-list{max-height:min(48dvh,440px)}
 .control-zone .debug-panel{position:relative;right:auto;top:auto;width:100%;margin-top:10px}
 .controls-collapsed-note{margin:0 16px 12px;color:#adbed1;font-size:12px;text-align:center}
 @media(max-width:700px){body{overflow:auto}.app{height:auto;min-height:100dvh;grid-template-rows:auto auto auto}.app-header{flex-wrap:wrap;gap:8px}.visualization-shell{padding:0}.bay-preview-frame{width:100%}.controls{margin:10px}.header-actions{width:100%;justify-content:space-between}}
@@ -850,7 +837,6 @@ h1 {
 .parameter-controls label{width:100%}
 .parameter-controls .bpm-method-control,.parameter-controls .intensity-control{display:flex;flex-direction:column;align-items:stretch;gap:6px}
 .parameter-controls .bpm-method-control select{width:100%}
-.parameter-controls .catalog-icon-button{align-self:flex-start;min-width:145px;padding:0 10px}
 .bay-transport{grid-column:1/-1;grid-row:3;display:grid;gap:10px;padding:12px 16px;border:1px solid rgba(221,232,248,.17);border-radius:8px;background:#0b121f;color:#eaf1ff}
 .bay-transport-primary{display:flex;align-items:center;gap:12px;min-width:0}
 .bay-transport-primary .seek{flex:1;min-width:0;accent-color:#a8c9f7}

@@ -43,13 +43,19 @@ Current method:
 7. Search the common tempo range, currently 70-180 BPM, using autocorrelation-style lag scoring.
 8. Pick the strongest lag as the estimated beat interval and BPM.
 9. Search beat phase offsets to estimate the first beat time.
-10. Use the resulting beat grid for beat-synced actions such as `beatJump`, `beatSideStep`, `beatTilt`, and `beatShape`.
+10. Use the resulting beat grid for beat-synced actions such as `beatJump`, `beatSideStep`, `beatTilt`, `beatShape`, and the white, yellow, and purple ray actions. Each ray action links its logo to 2–5 nearby logos with straight lines that appear on the beat. One logo is randomly assigned yellow rays and another purple rays when the page loads.
 
 This is a lightweight MVP tempo detector, not a full DJ-grade beat tracker. It works best on songs with clear rhythmic onsets and steady tempo. Weak drums, long ambient intros, tempo changes, swing, or half-time/double-time ambiguity can produce imperfect BPM or first-beat estimates.
 
 ## Configuration
 
 Company placement and brand assets live in `src/config/companies.ts`. Audio behavior lives in `src/config/audioDNA.ts`. Abstract network connections live in `src/config/connections.ts`. Global tuning values live in `src/config/visualization.ts`.
+The company catalog stays visible in the right control area and scrolls independently when its list is long.
+
+The `orbit` action shows four bright gold `$` symbols rotating around the logo, each with its bottom facing the center.
+The `glow` action brightens on each analyzed beat and fades between beats; it uses audio onset as a fallback until tempo analysis is available.
+The `shake` action moves the logo rapidly in two directions during each beat pulse and rests between pulses.
+The `haloHueShift` action advances the logo halo's HSL hue by 60° on every beat, leaving saturation and lightness unchanged. Intel uses this action by default.
 
 ## Brand Assets
 

@@ -46,10 +46,6 @@
         </button>
 
         <div id="advancedControls" class="advanced-controls">
-          <button id="analysisModeToggle" class="mode-toggle" type="button" aria-pressed="false">
-            Classic
-          </button>
-
           <label class="control">
             <span>Lightning Brightness</span>
             <input id="lightningBoost" type="range" min="0.4" max="2.2" value="1.2" step="0.05" />
@@ -69,6 +65,12 @@
           <label class="control">
             <span>Base Background Brightness</span>
             <input id="backgroundBrightness" type="range" min="0.15" max="0.75" value="0.75" step="0.01" />
+          </label>
+
+          <label class="control control--checkbox">
+            <span>Water Reflections</span>
+            <input id="reflectionsEnabled" type="checkbox" checked />
+            <span>Show</span>
           </label>
 
           <label class="control control--checkbox">
@@ -96,16 +98,6 @@
           <label class="control">
             <span>Meteor Frequency <strong id="meteorIntervalValue">about every 6s</strong></span>
             <input id="meteorInterval" type="range" min="2" max="15" value="6" step="1" />
-          </label>
-
-          <label class="control vizzy-control">
-            <span>Vizzy Sensitivity</span>
-            <input id="vizzySensitivity" type="range" min="0.7" max="2.6" value="1.35" step="0.05" />
-          </label>
-
-          <label class="control vizzy-control">
-            <span>Vizzy Bands</span>
-            <input id="vizzyBands" type="range" min="24" max="96" value="64" step="8" />
           </label>
 
           <section class="common-bpm-panel" aria-label="基础 BPM 预分析">

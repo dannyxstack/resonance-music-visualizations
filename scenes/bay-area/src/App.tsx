@@ -16,7 +16,6 @@ export default function App(): React.ReactElement {
   const [masterIntensity, setMasterIntensity] = useState(0.82);
   const [metrics, setMetrics] = useState({ fps: 60, particleCount: 0 });
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [catalogOpen, setCatalogOpen] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(true);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -122,7 +121,6 @@ export default function App(): React.ReactElement {
       <div className="control-zone">{controlsOpen ? <><AudioControls
         fileName={audio.fileName}
         intensity={masterIntensity}
-        catalogOpen={catalogOpen}
         tempoProgress={tempoProgress}
         bpmMethod={bpmMethod}
         energyMethod={energyMethod}
@@ -130,17 +128,13 @@ export default function App(): React.ReactElement {
         onBpmMethod={method => { analysisTokenRef.current++; setTempoProgress(null); setBpmMethod(method); }}
         onReanalyze={() => { if (selectedFileRef.current) void analyzeSelected(selectedFileRef.current, bpmMethod); }}
         onIntensity={setMasterIntensity}
-        onToggleCatalog={() => setCatalogOpen((open) => !open)}
       />
 
       {debugOpen ? (
         <DebugPanel features={audio.features} fps={metrics.fps} particleCount={metrics.particleCount} />
       ) : null}
 
-      <CompanyCatalog
-        open={catalogOpen}
-        positions={nodePositions}
-      />
+      <CompanyCatalog positions={nodePositions} />
       </> : <div className="controls-collapsed-note">画面预览 · 控制区已收起</div>}</div>
       <AudioTransport isPlaying={audio.isPlaying} currentTime={audio.currentTime} duration={audio.duration}
         fileName={audio.fileName} error={audio.error} tempo={tempo} tempoProgress={tempoProgress}

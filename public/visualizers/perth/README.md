@@ -5,15 +5,14 @@ A browser-based music visualizer that maps audio energy onto a city skyline. Bui
 ## Features
 
 - Local audio file playback through the Web Audio API.
-- Canvas-rendered skyline, colored stars, lightning, water glow, and idle waveform.
+- Canvas-rendered skyline, colored stars, lightning, dim window-light reflections in the water, and idle waveform.
 - City image backdrop with configurable building window regions.
 - Building hover labels based on the configured `imageBuildings` rectangles.
 - Bass, Mid, and Treble meters.
-- Two audio analysis modes:
-  - `Classic`: simple Bass/Mid/Treble frequency bands.
-  - `Vizzy-like`: log-spaced multi-band analysis with spectral-flux style hit detection.
+- Bass/Mid/Treble frequency analysis with selectable energy methods for meters and city buildings.
 - Adjustable lightning visibility, brightness, and frequency.
 - Adjustable star visibility, count, and movement speed.
+- Shooting stars with an independent frequency control.
 - Offline beat detection for a named building.
 - Adjustable background brightness.
 - Selectable lightning rhythm source: Bass, Mid, or Treble.
@@ -46,16 +45,17 @@ You can also open `index.html` directly, but using a local server is more reliab
 
 ## Controls
 
-- `Classic / Vizzy-like`: switches between the original simple frequency mode and the more transient-aware mode.
 - `Lightning Brightness`: controls bolt glow and flash intensity.
 - `Lightning`: shows or hides lightning. When disabled, no bolts or flash overlay are drawn.
 - `Lightning Frequency`: controls how often lightning appears. The center is `1x`; each step left halves the frequency, and each step right doubles it.
 - `Base Background Brightness`: controls the non-lightning brightness of the skyline and sky.
+- `Water Reflections`: shows or hides the added building-light reflections below the waterline. Each reflection keeps its source window's horizontal position.
 - `Stars`: shows or hides the moving star field.
 - `Star Count`: controls how many stars are drawn.
 - `Star Speed`: controls the very slow left-to-right star movement. All stars move with a wide speed spread, 50% twinkle, and 50% use pink, purple, or warm yellow nebula tones.
-- `Vizzy Sensitivity`: controls how strongly Vizzy-like mode responds to sudden audio changes.
-- `Vizzy Bands`: controls the number of log-spaced analysis bands used by Vizzy-like mode.
+- `Shooting Stars`: shows or hides meteors that travel from upper right to lower left, independently of the music.
+- `Meteor Frequency`: sets an approximate interval of 2–15 seconds between meteors.
+- `City Scene Energy Method`: chooses how the skyline buildings respond to live frequency energy, analyzed beats, and the offline low-frequency envelope.
 - `Sky Title`: shows or hides the animated title in the sky.
 - `Sky Title Text`: changes the sky title text. The default is `Music Wave Visualization With Skyline`.
 - `Sky Title Rhythm`: chooses which beat track controls title color speed and subtle brightness.
@@ -66,27 +66,13 @@ You can also open `index.html` directly, but using a local server is more reliab
 
 ## Audio Analysis
 
-### Classic Mode
-
-Classic mode keeps the original approach:
+The live frequency analysis uses three ranges:
 
 - Bass: `35-250Hz`
 - Mid: `250-2600Hz`
 - Treble: `2600-12000Hz`
 
-Each range is averaged and smoothed. This is simple and stable, but it can blur rhythm because sustained notes, reverb, and percussion are mixed together inside broad frequency bands.
-
-### Vizzy-like Mode
-
-Vizzy-like mode keeps the existing UI model but analyzes audio with more detail:
-
-- Creates log-spaced bands from `35Hz` to `12000Hz`.
-- Measures energy per band.
-- Compares the current frame against the previous frame.
-- Uses a moving baseline to detect sudden increases.
-- Produces hit values that are used for building lights and lightning triggers.
-
-This does not isolate instruments directly, but it reacts more like musical transients: kicks, snares, hi-hats, plucks, and other attacks.
+Each range is averaged and smoothed. The city scene energy selector then combines live energy with the analyzed beat or low-frequency envelope according to the selected method. Each building receives its own live frequency slice.
 
 ## Sky Title
 
@@ -169,11 +155,10 @@ The main control bar should only keep always-needed controls visible:
 - play/pause
 - settings collapse button
 
-Advanced settings belong inside `#advancedControls`, including mode toggles, range sliders, radio groups, and future checkboxes. See `rules.md` for the maintained rule list.
+Advanced settings belong inside `#advancedControls`, including range sliders, radio groups, and future checkboxes. See `rules.md` for the maintained rule list.
 
 ## Notes
 
 - The app runs fully in the browser.
 - Audio files remain local to the user’s machine.
 - Some visual timing depends on browser rendering performance.
-- Vizzy-like mode is inspired by multi-band music visualizer behavior, not by source-separated instrument detection.

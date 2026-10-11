@@ -4,16 +4,21 @@ export type MotionType =
   | "breath"
   | "pulse"
   | "glow"
+  | "haloHueShift"
   | "shake"
   | "orbit"
   | "spin"
+  | "spin2x"
   | "ripple"
   | "beatJump"
   | "beatSideStep"
   | "beatTilt"
   | "beatGrow"
   | "beatLogoGrow"
-  | "beatShape";
+  | "beatShape"
+  | "whiteRays"
+  | "yellowRays"
+  | "purpleRays";
 export type MoneyFlow = "emit" | "absorb" | "neutral";
 export type BrandAnimationMode = "safe-wrapper" | "expressive-logo";
 
