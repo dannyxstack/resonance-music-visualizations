@@ -6,7 +6,7 @@ import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.
 import { analyzeLowFrequencyFile, buildLowFrequencyDrive, sampleLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 import { analyzeOfflineSpectrum } from '../shared/offline-spectrum.js';
 import { drawTextOverlay } from '../shared/text-overlay.js';
-import { exportCanvasVideo, downloadVideo } from '../shared/video-export.js';
+import { exportCanvasVideo, downloadVideo } from '../shared/video-export.js?v=export-2';
 import { drawDancer } from './dancer.js';
 
 const $ = id => document.getElementById(id);
@@ -694,6 +694,7 @@ window.addEventListener('pagehide', () => {
 
 setPanel(!window.matchMedia('(max-width: 640px)').matches);
 syncSettings();
+setStatus('exportStatus', `编码环境：${window.isSecureContext ? '安全上下文' : '非安全上下文'} · 视频编码 API ${typeof VideoEncoder === 'undefined' ? '不可用' : '可用'} · 实时录制 API ${typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream ? '不可用' : '可用'}`);
 resize();
 setBackground('Nebula-NGC-6302.webp');
 registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });
