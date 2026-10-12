@@ -6,7 +6,7 @@ import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.
 import { analyzeLowFrequencyFile, buildLowFrequencyDrive, sampleLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 import { analyzeOfflineSpectrum } from '../shared/offline-spectrum.js';
 import { drawTextOverlay } from '../shared/text-overlay.js';
-import { exportCanvasVideo, downloadVideo } from '../shared/video-export.js?v=export-2';
+import { exportCanvasVideo, downloadVideo } from '../shared/video-export.js?v=export-3';
 import { drawDancer } from './dancer.js';
 
 const $ = id => document.getElementById(id);

@@ -2,7 +2,7 @@
 // Mediabunny is loaded only after the user starts an export.
 let mediaLibrary;
 async function getMediaLibrary() {
-  mediaLibrary ||= import('./vendor/mediabunny.min.mjs');
+  mediaLibrary ||= import('./vendor/mediabunny.min.js');
   return mediaLibrary;
 }
 
