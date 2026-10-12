@@ -1,6 +1,15 @@
 // Add new independent visualizers here; entry and cover are relative to public/.
 export const projects = [
   {
+    id: 'america-cities', title: '美国城市 · 立体频谱', english: 'AMERICA CITIES',
+    category: '城市天际线', location: 'CONTIGUOUS UNITED STATES', year: '2026',
+    description: '一张平放的立体美国地图，人口最多的 50 座城市各自升起一根随音乐变化的频谱柱。',
+    tags: ['3D 地图', '50 座城市', '人口数据', 'BPM 预分析'],
+    entry: 'visualizers/america-cities/index.html', cover: 'art/america-cities.svg',
+    accent: '#75e5f2', featured: false,
+    instructions: '选择本地音乐后自动分析 BPM 并播放。右侧调整地图视角、柱高与通用能量方法；按 H 折叠参数面板。',
+  },
+  {
     id: 'earth-spin', title: '地球自转 · 赤道频谱', english: 'EARTH SPIN',
     category: '宇宙旅程', location: 'PLANET EARTH', year: '2026',
     description: '点阵陆地缓缓旋转，24 根镜像频谱沿赤道环绕地球，跟随音乐向南北两极对称跃动。',

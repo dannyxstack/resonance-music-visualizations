@@ -3,6 +3,7 @@ import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEne
 import { analyzeLowFrequencyFile, buildLowFrequencyDrive, updateLowFrequencyLevel } from "../shared/low-envelope.js";
 import { registerScene } from "../shared/scene.js";
 import { bindAnalysisSummary, bindPreviewFullscreen } from "../shared/workspace.js";
+import { mountLiveExport } from "../shared/live-export-controls.js";
 import { activeMeteors } from "./meteors.js";
 
 const canvas = document.querySelector("#scene");
@@ -121,6 +122,7 @@ async function runLowEnvelopeAnalysis(file, selection) {
 }
 
 const audio = document.querySelector("#audioPlayback");
+let exportControls;
 // Selected files are local blob URLs and do not need cross-origin requests.
 audio.preload = "auto";
 const audioStatus = document.querySelector("#audioStatus");
@@ -1451,6 +1453,7 @@ fileInput.addEventListener("change", async () => {
   const selection = new AbortController();
   audioSelection = selection;
   audioReady = false;
+  exportControls?.sync();
   playbackPending = false;
   audio.pause();
   audio.removeAttribute("src");
@@ -1479,6 +1482,7 @@ fileInput.addEventListener("change", async () => {
     if (selection.signal.aborted) { URL.revokeObjectURL(loadedUrl); return; }
     audioUrl = loadedUrl;
     audioReady = true;
+    exportControls?.sync();
     playButton.disabled = false;
     detectBeatButton.disabled = false;
     void runCommonBpmAnalysis(file, selection);
@@ -1654,6 +1658,7 @@ resize();
 registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });
 bindAnalysisSummary(document.querySelector('#commonBpmStatus'), lowEnvelopeStatus, document.querySelector('#transportAnalysis'));
 bindPreviewFullscreen(scenePreview, document.querySelector('#fullscreenPreview'));
+exportControls = mountLiveExport(document.querySelector('#advancedControls'), { canvas, audio, getFile: () => audioReady ? selectedAudioFile : null, sceneName: 'perth-skyline' });
 const seekInput = document.querySelector('#seek');
 function syncTransport() {
   const duration = Number.isFinite(audio.duration) ? audio.duration : 0;

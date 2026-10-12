@@ -9,6 +9,8 @@ import { useAudioEngine } from "./hooks/useAudioEngine";
 import type { BrandAnimationMode } from "./types/company";
 import type { TempoAnalysis, TempoProgress } from "./types/tempo";
 import { analyzeLowFrequencyFile } from "../../../public/visualizers/shared/low-envelope.js";
+import { mountLiveExport } from "../../../public/visualizers/shared/live-export-controls.js";
+import "../../../public/visualizers/shared/live-export-controls.css";
 
 export default function App(): React.ReactElement {
   const audio = useAudioEngine();
@@ -29,6 +31,7 @@ export default function App(): React.ReactElement {
   const lowTokenRef = useRef(0);
   const analysisTokenRef = useRef(0);
   const selectedFileRef = useRef<File | null>(null);
+  const exportMountRef = useRef<HTMLDivElement | null>(null);
   const animationMode: BrandAnimationMode = "safe-wrapper";
 
   useEffect(() => {
@@ -44,6 +47,21 @@ export default function App(): React.ReactElement {
     document.addEventListener('fullscreenchange', sync);
     return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
+
+  useEffect(() => {
+    if (!controlsOpen || !exportMountRef.current) return;
+    const canvas = document.querySelector<HTMLCanvasElement>('#scenePreview canvas');
+    if (!canvas) return;
+    const controls = mountLiveExport(exportMountRef.current, {
+      canvas,
+      audio: audio.engine.audio,
+      getFile: () => selectedFileRef.current,
+      sceneName: 'bay-area',
+      play: audio.play,
+      pause: audio.pause,
+    });
+    return () => controls.dispose();
+  }, [controlsOpen, audio.engine.audio]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -135,6 +153,7 @@ export default function App(): React.ReactElement {
       ) : null}
 
       <CompanyCatalog positions={nodePositions} />
+      <div ref={exportMountRef} />
       </> : <div className="controls-collapsed-note">画面预览 · 控制区已收起</div>}</div>
       <AudioTransport isPlaying={audio.isPlaying} currentTime={audio.currentTime} duration={audio.duration}
         fileName={audio.fileName} error={audio.error} tempo={tempo} tempoProgress={tempoProgress}

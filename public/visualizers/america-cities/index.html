@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#050c1c" />
+  <title>AMERICA CITIES · RESONANCE</title>
+  <link rel="stylesheet" href="../shared/scene-preview.css" />
+  <link rel="stylesheet" href="../shared/workspace-layout.css" />
+  <link rel="stylesheet" href="../shared/live-export-controls.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="america-app" id="americaApp">
+    <header class="app-header"><div class="brand"><span class="brand-mark">▥</span><div><span class="eyebrow">RESONANCE / VISUAL LAB</span><h1>AMERICA <em>CITIES</em></h1></div></div><button id="panelToggle" type="button" aria-controls="controlPanel" aria-expanded="true">收起参数 <span aria-hidden="true">⌃</span></button></header>
+    <div class="preview-area"><div class="scene-preview-frame" id="scenePreview"><canvas id="scene" aria-label="美国本土立体地图与五十座城市频谱柱视频预览"></canvas></div></div>
+    <aside class="control-panel" id="controlPanel" aria-label="美国城市频谱参数">
+      <div class="panel-heading"><div><span class="eyebrow">CITY CONTROLS</span><h2>城市参数</h2></div><div class="panel-actions"><button id="fullscreenPreview" class="preview-fullscreen-button" type="button" aria-label="视觉效果全屏">⛶</button><button id="closePanel" type="button" aria-label="收起参数">×</button></div></div>
+      <div class="panel-scroll">
+        <section class="control-group"><h3>01 / 地图视角</h3>
+          <label class="setting" for="cameraTilt">俯视角度 <output id="cameraTiltValue">54°</output></label><input id="cameraTilt" type="range" min="30" max="75" value="54" />
+          <label class="setting" for="cameraYaw">水平旋转 <output id="cameraYawValue">-8°</output></label><input id="cameraYaw" type="range" min="-35" max="35" value="-8" />
+          <p class="hint">地图平放并以透视投影呈现；柱子从城市坐标垂直升起。</p>
+        </section>
+        <section class="control-group"><h3>02 / 城市频谱</h3>
+          <label class="setting" for="energyMethod">城市柱能量方法</label><select id="energyMethod"></select>
+          <label class="setting" for="barHeight">柱高比例 <output id="barHeightValue">100%</output></label><input id="barHeight" type="range" min="40" max="180" value="100" />
+          <label class="setting" for="sensitivity">能量灵敏度 <output id="sensitivityValue">100%</output></label><input id="sensitivity" type="range" min="40" max="200" value="100" />
+          <p class="hint">50 座城市按人口排名映射低频到高频。柱径 = 1 + 归一化 log(人口)，范围 1–3。</p>
+          <p id="lowEnvelopeStatus" class="hint" role="status" aria-live="polite">选择音乐后分析低频包络</p>
+        </section>
+        <section class="control-group"><h3>03 / 城市数据</h3>
+          <p class="hint">2025 年人口估计 · 美国人口普查局。地图只显示美国本土 48 州与华盛顿特区。</p>
+          <details class="city-data"><summary>查看 50 城人口</summary><ol id="cityList"></ol><a href="data-source.md" target="_blank" rel="noopener noreferrer">数据来源与口径 ↗</a></details>
+        </section>
+        <section class="control-group"><h3>04 / 基础节奏</h3>
+          <div class="bpm-readout"><strong id="bpmValue">--</strong><span>BPM</span></div>
+          <p class="hint">首拍时间偏移：<strong id="firstBeatOffset">-- 秒</strong></p>
+          <label class="setting" for="bpmMethod">预分析方法</label><select id="bpmMethod"></select>
+          <button id="reanalyzeBpm" class="secondary-button" type="button" disabled>重新分析 BPM</button>
+          <p id="bpmStatus" class="hint" role="status" aria-live="polite">等待选曲</p>
+        </section>
+        <section class="control-group"><h3>05 / 音频</h3>
+          <label class="setting" for="volume">音量 <output id="volumeValue">80%</output></label><input id="volume" type="range" min="0" max="100" value="80" />
+          <p class="hint" id="audioStatus" role="status" aria-live="polite">选曲后自动分析并播放</p>
+        </section>
+      </div>
+    </aside>
+    <footer class="transport-panel" aria-label="音乐播放控制">
+      <div class="transport-primary"><label class="open-button" for="audioFile">♫ <span>打开音乐</span></label><input id="audioFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden /><button id="playButton" class="play-button" type="button" aria-label="播放" disabled>▶</button><div class="seek-area"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled /><div class="time-row"><span id="currentTime">00:00</span><span id="duration">00:00</span></div></div></div>
+      <div class="transport-secondary"><span id="trackName" title="">尚未选择本地音乐</span><span id="transportAnalysis" role="status" aria-live="polite">等待选曲</span><span>BPM <strong id="transportBpm">--</strong></span><span>首拍偏移 <strong id="transportOffset">-- 秒</strong></span></div>
+    </footer>
+    <audio id="player" preload="metadata"></audio>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

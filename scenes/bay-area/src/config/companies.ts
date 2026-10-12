@@ -54,11 +54,17 @@ const specs: CompanySpec[] = [
   { id: "github", name: "GitHub", x: 0.58, y: 0.27, band: "sub", motion: "beatGrow", response: 0.16, intensity: 0.46, moneyFlow: "neutral", color: "#f4f6f8" },
 ];
 
-// Pick one distinct logo for each new ray action when the page loads.
+// Pick distinct logos for one-off effects when the page loads.
 const rayCandidates = specs.filter(spec => !['whiteRays', 'spin', 'spin2x', 'shake', 'glow', 'orbit', 'haloHueShift'].includes(spec.motion));
 for (const motion of ['yellowRays', 'purpleRays'] as const) {
   const index = Math.floor(Math.random() * rayCandidates.length);
   const [chosen] = rayCandidates.splice(index, 1);
+  if (chosen) chosen.motion = motion;
+}
+const newActionCandidates = specs.filter(spec => ['beatJump', 'beatSideStep', 'beatTilt', 'beatGrow', 'beatLogoGrow', 'beatShape'].includes(spec.motion));
+for (const motion of ['okEmoji', 'flipLaugh', 'flipUpsideDown', 'walkLegs'] as const) {
+  const index = Math.floor(Math.random() * newActionCandidates.length);
+  const [chosen] = newActionCandidates.splice(index, 1);
   if (chosen) chosen.motion = motion;
 }
 

@@ -37,6 +37,7 @@ function sceneSettings() {
     leftEnergyMethod: $('leftEnergyMethod').value,
     rightEnergyMethod: $('rightEnergyMethod').value,
     dancerMode: $('dancerMode').value,
+    dancerStyle: $('dancerStyle').value,
     dancerSize: Number($('dancerSize').value) / 100,
     dancerDepth: Number($('dancerDepth').value) / 100,
     dancerMotion: Number($('dancerMotion').value) / 100,
@@ -86,7 +87,7 @@ function syncSettings() {
       volume: $('volume').value, sensitivity: $('sensitivity').value,
       glow: $('glow').value, dim: $('dim').value, stars: $('stars').value, bpmMethod: $('bpmMethod').value,
       leftEnergyMethod: $('leftEnergyMethod').value, rightEnergyMethod: $('rightEnergyMethod').value,
-      dancerMode: $('dancerMode').value, dancerSize: $('dancerSize').value, dancerDepth: $('dancerDepth').value,
+      dancerMode: $('dancerMode').value, dancerStyle: $('dancerStyle').value, dancerSize: $('dancerSize').value, dancerDepth: $('dancerDepth').value,
       dancerMotion: $('dancerMotion').value, dancerGlow: $('dancerGlow').value,
       showText: $('showText').checked, sceneTitle: $('sceneTitle').value,
       sceneSubtitle: $('sceneSubtitle').value, sceneAuthor: $('sceneAuthor').value,
@@ -430,7 +431,7 @@ function drawRoadDancer(pointAt, time, beatPulse) {
   const energy = drawing.lowDrive ? sampleLowFrequencyDrive(drawing.lowDrive, time)
     : Math.max(beatPulse, (drawing.levels[0] + drawing.levels[1] + drawing.levels[2]) / 3);
   drawDancer(drawing.ctx, {
-    mode, x: point.center, y: point.y, height, time,
+    mode, style: drawing.settings.dancerStyle, x: point.center, y: point.y, height, time,
     bpm: drawing.bpm?.confidence >= .2 ? drawing.bpm.bpm : 110,
     firstBeatTime: firstBeatOffset(drawing.bpm) || 0,
     energy, motion: drawing.settings.dancerMotion,
@@ -610,6 +611,7 @@ try {
     }
   }
   if (['skeleton', 'sprite', 'off'].includes(saved.dancerMode)) $('dancerMode').value = saved.dancerMode;
+  if (['shuffle', 'jump', 'moonwalk', 'classic'].includes(saved.dancerStyle)) $('dancerStyle').value = saved.dancerStyle;
   for (const id of ['sceneTitle', 'sceneSubtitle', 'sceneAuthor']) if (typeof saved[id] === 'string') $(id).value = saved[id];
   $('showText').checked = Boolean(saved.showText);
   if (['bottom-left', 'bottom-center', 'top-left', 'top-center'].includes(saved.textPosition)) $('textPosition').value = saved.textPosition;
@@ -626,6 +628,7 @@ fillMethodSelect($('rightEnergyMethod'), ENERGY_METHODS, savedSettings.rightEner
 for (const id of ['volume', 'sensitivity', 'glow', 'dim', 'stars', 'dancerSize', 'dancerDepth', 'dancerMotion', 'dancerGlow']) $(id).addEventListener('input', syncSettings);
 for (const id of ['showText', 'sceneTitle', 'sceneSubtitle', 'sceneAuthor', 'textPosition', 'textColor', 'exportSize', 'exportFps', 'exportMode']) $(id).addEventListener('input', syncSettings);
 $('dancerMode').addEventListener('change', syncSettings);
+$('dancerStyle').addEventListener('change', syncSettings);
 for (const id of ['leftEnergyMethod', 'rightEnergyMethod']) $(id).addEventListener('change', syncSettings);
 $('bpmMethod').addEventListener('change', () => {
   syncSettings();

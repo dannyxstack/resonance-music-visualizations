@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dancerPose } from '../public/visualizers/space-odyssey/dancer-motion.js';
+import { dancerPose, capturedDancerPose } from '../public/visualizers/space-odyssey/dancer-motion.js';
 
 test('dance pose follows playback time and detected BPM', () => {
   const before = dancerPose(.5, 120, .5, .4);
@@ -19,4 +19,15 @@ test('low frequency energy changes bounce while zero motion holds an idle pose',
   assert.equal(still.bounce, 0);
   assert.equal(still.sway, 0);
   assert.equal(still.frame, 0);
+});
+
+test('captured dance styles have valid deterministic joints and loop on four beats', () => {
+  for (const style of ['shuffle', 'jump', 'moonwalk']) {
+    const start = capturedDancerPose(style, 0, 120, 0, .5);
+    assert.equal(start.joints.length, 16);
+    assert.ok(start.joints.flat().every(Number.isFinite));
+    assert.deepEqual(capturedDancerPose(style, 2, 120, 0, .5), start);
+    assert.notDeepEqual(capturedDancerPose(style, .5, 120, 0, .5), start);
+    assert.deepEqual(capturedDancerPose(style, .5, 120, 0, .5, 0).joints, capturedDancerPose(style, 0, 120, 0, .5, 0).joints);
+  }
 });

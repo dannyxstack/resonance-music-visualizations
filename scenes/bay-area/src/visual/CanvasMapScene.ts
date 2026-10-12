@@ -5,7 +5,7 @@ import type { AudioFeatures } from '../types/audio';
 import type { TempoAnalysis } from '../types/tempo';
 import type { MotionType } from '../types/company';
 import { ParticleEngine } from '../particles/ParticleEngine';
-import { beatCycleStepAt, logoActionAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue } from './logoMotion';
+import { beatCycleStepAt, logoActionAt, logoFlipAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue, walkingLegsAt } from './logoMotion';
 import { energyByMethod } from '../../../../public/visualizers/shared/analysis.js';
 
 const clamp = (value: number): number => Math.max(0, Math.min(1, value));
@@ -163,8 +163,12 @@ export class CanvasMapScene {
       const haloColor = company.motion === 'haloHueShift'
         ? shiftHexHue(company.color, hueStep * 60)
         : company.color;
+      const flip = company.motion === 'flipLaugh' || company.motion === 'flipUpsideDown'
+        ? logoFlipAt(time, tempo, playing)
+        : null;
       ctx.save();
       ctx.translate(x, y);
+      if (flip) ctx.scale(company.motion === 'flipLaugh' ? flip.scale : 1, company.motion === 'flipUpsideDown' ? flip.scale : 1);
       ctx.shadowColor = haloColor;
       ctx.shadowBlur = company.motion === 'glow' ? 4 + glowLevel * 55 : 8 + value * 24 * intensity;
       ctx.globalAlpha = company.motion === 'glow' ? .08 + glowLevel * .88 : .3 + value * .3;
@@ -201,6 +205,23 @@ export class CanvasMapScene {
           ctx.restore();
         }
         ctx.shadowBlur = 0;
+      }
+      if (company.motion === 'walkLegs') {
+        const legs = walkingLegsAt(time, tempo, playing, radius, reducedMotion);
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(2.6, radius * .22);
+        ctx.strokeStyle = '#e9f8ff';
+        ctx.shadowColor = company.color;
+        ctx.shadowBlur = 5;
+        for (const [side, offset, lift] of [[-1, legs.leftX, legs.leftLift], [1, legs.rightX, legs.rightLift]]) {
+          const hipX = side * radius * .27;
+          ctx.beginPath();
+          ctx.moveTo(hipX, radius * .72);
+          ctx.lineTo(hipX + offset, radius * 2.35 - lift);
+          ctx.stroke();
+        }
+        ctx.restore();
       }
       ctx.fillStyle = '#0d1624';
       ctx.beginPath();
@@ -242,7 +263,13 @@ export class CanvasMapScene {
         ctx.beginPath(); ctx.arc(Math.cos(-.3) * radius * 1.3, Math.sin(-.3) * radius * 1.3, 2.7, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       }
-      if (logo?.complete && logo.naturalWidth) {
+      if (flip?.emoji) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.max(22, radius * 2.05)}px "Noto Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(company.motion === 'flipLaugh' ? '😂' : '🙃', 0, 0);
+      } else if (logo?.complete && logo.naturalWidth) {
         const logoRadius = company.motion === 'beatGrow' ? baseRadius : radius;
         const contentSize = logoRadius * 1.43 * (company.logoScale || 1) * (company.motion === 'beatLogoGrow' ? 1 + pulse * .68 : 1);
         const imageScale = Math.min(contentSize / logo.naturalWidth, contentSize / logo.naturalHeight);
@@ -254,6 +281,32 @@ export class CanvasMapScene {
         ctx.font = `700 ${radius}px Arial, sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(company.fallbackLabel, 0, 1);
+      }
+      if (company.motion === 'okEmoji') {
+        const sway = (actionBeat.index % 2 ? 1 : -1) * actionBeat.pulse * radius * (reducedMotion ? .28 : .9);
+        const signY = -radius * 2.55;
+        const signWidth = radius * 1.95;
+        const signHeight = radius * 1.35;
+        ctx.save();
+        ctx.strokeStyle = '#d8efff';
+        ctx.lineWidth = Math.max(1.6, radius * .12);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-radius * .5, -radius * .55);
+        ctx.lineTo(sway - signWidth * .35, signY + signHeight * .52);
+        ctx.moveTo(radius * .5, -radius * .55);
+        ctx.lineTo(sway + signWidth * .35, signY + signHeight * .52);
+        ctx.stroke();
+        ctx.fillStyle = '#102338';
+        ctx.strokeStyle = company.color;
+        ctx.lineWidth = Math.max(1.5, radius * .1);
+        ctx.fillRect(sway - signWidth / 2, signY - signHeight / 2, signWidth, signHeight);
+        ctx.strokeRect(sway - signWidth / 2, signY - signHeight / 2, signWidth, signHeight);
+        ctx.font = `${Math.max(17, radius * 1.15)}px "Noto Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('👌', sway, signY);
+        ctx.restore();
       }
       ctx.restore();
       ctx.restore();

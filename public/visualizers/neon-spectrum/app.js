@@ -3,12 +3,14 @@ import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEne
 import { analyzeLowFrequencyFile, buildLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
+import { mountLiveExport } from '../shared/live-export-controls.js';
 
 const $ = id => document.getElementById(id);
 const root = document.querySelector('.visualizer');
 const canvas = $('scene');
 const ctx = canvas.getContext('2d', { alpha: false });
 const audio = $('player');
+let exportControls;
 const settingsIds = ['logoColor', 'titleInput', 'titleColor', 'titleFont', 'titleSize', 'subtitleInput', 'subtitleColor', 'subtitleFont', 'subtitleSize', 'backgroundDim', 'grayscale', 'volume', 'sensitivity', 'bpmMethod', 'barsEnergyMethod'];
 const fonts = {
   system: '"Arial Narrow", Impact, "Microsoft YaHei", sans-serif',
@@ -165,6 +167,7 @@ async function selectAudio(file) {
   if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
   state.audioUrl = null;
   state.audioReady = false;
+  exportControls?.sync();
   state.pending = false;
   audio.pause();
   audio.removeAttribute('src');
@@ -180,6 +183,7 @@ async function selectAudio(file) {
     if (selection.signal.aborted) { URL.revokeObjectURL(url); return; }
     state.audioUrl = url;
     state.audioReady = true;
+    exportControls?.sync();
     setTrackStatus(file.name);
     syncPlayback();
     void runBpmAnalysis();
@@ -420,6 +424,10 @@ $('panelToggle').addEventListener('click', () => setPanel(!root.classList.contai
 $('closePanel').addEventListener('click', () => setPanel(false));
 $('cleanView').addEventListener('click', () => { setPanel(false, true); $('toast').hidden = true; });
 bindPreviewFullscreen($('scenePreview'), $('fullscreen'));
+exportControls = mountLiveExport($('controlPanel'), {
+  canvas, audio, getFile: () => state.audioReady ? state.audioFile : null, sceneName: 'neon-spectrum',
+  prepare: async () => { const graph = getAudioContext(); if (graph.state === 'suspended') await graph.resume(); },
+});
 window.addEventListener('keydown', event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target?.tagName)) return;

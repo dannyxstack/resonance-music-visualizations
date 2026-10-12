@@ -18,7 +18,11 @@ export type MotionType =
   | "beatShape"
   | "whiteRays"
   | "yellowRays"
-  | "purpleRays";
+  | "purpleRays"
+  | "okEmoji"
+  | "flipLaugh"
+  | "flipUpsideDown"
+  | "walkLegs";
 export type MoneyFlow = "emit" | "absorb" | "neutral";
 export type BrandAnimationMode = "safe-wrapper" | "expressive-logo";
 

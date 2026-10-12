@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beatCycleStepAt, logoActionAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue } from '../scenes/bay-area/src/visual/logoMotion.ts';
+import { beatCycleStepAt, logoActionAt, logoFlipAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue, walkingLegsAt } from '../scenes/bay-area/src/visual/logoMotion.ts';
 import { companies } from '../scenes/bay-area/src/config/companies.ts';
 
 const tempo = { bpm: 120, beatInterval: .5, firstBeatTime: .1, confidence: 1 };
@@ -70,4 +70,24 @@ test('halo hue advances 60 degrees per beat while preserving saturation and ligh
   assert.equal(shiftHexHue('#ff0000', 60), 'hsl(60 100% 50%)');
   assert.equal(shiftHexHue('#ff0000', 360), '#ff0000');
   assert.equal(companies.filter(company => company.motion === 'haloHueShift').length, 1);
+});
+
+test('new emoji actions flip on alternate beats and walk legs follow a four-beat pattern', () => {
+  assert.deepEqual(logoFlipAt(0, tempo, false), { scale: 1, emoji: false });
+  assert.equal(logoFlipAt(.1, tempo, true).emoji, false);
+  assert.equal(logoFlipAt(.4, tempo, true).emoji, true);
+  assert.ok(logoFlipAt(.255, tempo, true).scale < .1);
+  assert.ok(logoFlipAt(.755, tempo, true).scale < .1);
+  assert.equal(logoFlipAt(.6, tempo, true).emoji, true);
+  assert.equal(logoFlipAt(.9, tempo, true).emoji, false);
+  const firstLeft = walkingLegsAt(.225, tempo, true, 20, false);
+  const secondLeft = walkingLegsAt(.475, tempo, true, 20, false);
+  assert.ok(firstLeft.leftX < -25 && firstLeft.rightX > 8 && firstLeft.leftLift > 0);
+  assert.ok(secondLeft.rightX < -25 && secondLeft.leftX > 8 && secondLeft.rightLift > 0);
+  assert.equal(walkingLegsAt(.725, tempo, true, 20, false).direction, 0);
+  assert.ok(walkingLegsAt(1.225, tempo, true, 20, false).leftX > 0);
+  assert.equal(walkingLegsAt(1.725, tempo, true, 20, false).direction, 0);
+  for (const motion of ['okEmoji', 'flipLaugh', 'flipUpsideDown', 'walkLegs']) {
+    assert.equal(companies.filter(company => company.motion === motion).length, 1);
+  }
 });

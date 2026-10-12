@@ -1,4 +1,4 @@
-import { dancerPose } from './dancer-motion.js';
+import { dancerPose, capturedDancerPose } from './dancer-motion.js';
 
 const sprite = new Image();
 sprite.src = new URL('./dancer-frames.svg', import.meta.url).href;
@@ -53,6 +53,28 @@ function drawSkeleton(ctx, pose, glow) {
   ctx.restore();
 }
 
+function drawCapturedSkeleton(ctx, pose, glow) {
+  const joint = index => [pose.joints[index][0], -pose.joints[index][1]];
+  ctx.save();
+  ctx.shadowColor = '#74e8ff';
+  ctx.shadowBlur = 11 * glow;
+  for (const [a, b, width, color] of [
+    [0, 1, .085, '#b4dcff'], [1, 2, .075, '#b4dcff'],
+    [1, 4, .065, '#88dfff'], [4, 5, .053, '#88dfff'], [5, 6, .042, '#88dfff'],
+    [1, 7, .065, '#f49ae9'], [7, 8, .053, '#f49ae9'], [8, 9, .042, '#f49ae9'],
+    [0, 10, .078, '#88dfff'], [10, 11, .065, '#88dfff'], [11, 12, .05, '#88dfff'],
+    [0, 13, .078, '#f49ae9'], [13, 14, .065, '#f49ae9'], [14, 15, .05, '#f49ae9'],
+  ]) segment(ctx, joint(a), joint(b), width, color);
+  const head = joint(3);
+  ctx.beginPath();
+  ctx.ellipse(head[0], head[1], .075, .095, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#050a18';
+  ctx.strokeStyle = '#b4dcff';
+  ctx.lineWidth = .018;
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
 function drawSprite(ctx, pose, motion) {
   if (!sprite.complete || !sprite.naturalWidth) return false;
   const strength = Math.max(0, Math.min(1, motion));
@@ -68,9 +90,10 @@ function drawSprite(ctx, pose, motion) {
   return true;
 }
 
-export function drawDancer(ctx, { mode, x, y, height, time, bpm, firstBeatTime, energy, motion, glow }) {
+export function drawDancer(ctx, { mode, style, x, y, height, time, bpm, firstBeatTime, energy, motion, glow }) {
   if (mode === 'off') return;
-  const pose = dancerPose(time, bpm, firstBeatTime, energy, motion);
+  const captured = mode === 'skeleton' ? capturedDancerPose(style, time, bpm, firstBeatTime, energy, motion) : null;
+  const pose = captured || dancerPose(time, bpm, firstBeatTime, energy, motion);
   ctx.save();
   ctx.translate(x, y);
   ctx.fillStyle = `rgba(65,205,255,${.12 + pose.pulse * .16})`;
@@ -78,9 +101,10 @@ export function drawDancer(ctx, { mode, x, y, height, time, bpm, firstBeatTime, 
   ctx.shadowBlur = 17 * glow;
   ctx.beginPath(); ctx.ellipse(0, 3, height * .17, Math.max(2, height * .025), 0, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.translate(pose.sway * height, -pose.bounce * height);
+  if (!captured) ctx.translate(pose.sway * height, -pose.bounce * height);
   ctx.scale(height, height);
-  if (mode === 'sprite') {
+  if (captured) drawCapturedSkeleton(ctx, captured, glow);
+  else if (mode === 'sprite') {
     ctx.shadowColor = '#86d8ff';
     ctx.shadowBlur = 10 * glow;
     if (!drawSprite(ctx, pose, motion)) drawSkeleton(ctx, pose, glow);

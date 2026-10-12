@@ -3,6 +3,7 @@ import { BPM_METHODS, ENERGY_METHODS, fillMethodSelect, analyzeByMethod, beatEne
 import { analyzeLowFrequencyEnvelope, buildLowFrequencyDrive, updateLowFrequencyLevel } from '../shared/low-envelope.js';
 import { registerScene } from '../shared/scene.js';
 import { bindAnalysisSummary, bindPreviewFullscreen } from '../shared/workspace.js';
+import { mountLiveExport } from '../shared/live-export-controls.js';
 import { BAR_BANDS, HALO_BAR_COUNT, HALO_BAND_COUNT, haloBandAt, latitudeForLevel } from './spectrum-layout.js';
 import { recedingStar } from './star-motion.js';
 import { CITY_GDP, CITY_ENERGY_METHODS, CITY_LIGHT_COLORS, cityEnergyForMethod, cityLightValue, cityLightRadius } from './city-lights.js';
@@ -12,6 +13,7 @@ const root = $('earthApp');
 const canvas = $('scene');
 const ctx = canvas.getContext('2d', { alpha: false });
 const audio = $('player');
+let exportControls;
 const RAD = Math.PI / 180;
 const TILT = 12 * RAD;
 const SIN_TILT = Math.sin(TILT);
@@ -191,6 +193,7 @@ async function selectAudio(file) {
   state.audioFile = file;
   state.audioUrl = null;
   state.audioReady = false;
+  exportControls?.sync();
   state.decoded = null;
   state.bpm = null;
   state.lowEnvelope = null;
@@ -213,6 +216,7 @@ async function selectAudio(file) {
     if (selection.signal.aborted) { URL.revokeObjectURL(url); return; }
     state.audioUrl = url;
     state.audioReady = true;
+    exportControls?.sync();
     syncPlayback();
     void analyzeSelectedFile(file, token);
     void startPlayback(selection);
@@ -521,6 +525,7 @@ for (const city of [...CITY_GDP].sort((a, b) => b.gdp - a.gdp)) {
 syncSettings();
 bindAnalysisSummary($('bpmStatus'), $('lowEnvelopeStatus'), $('transportAnalysis'));
 bindPreviewFullscreen($('scenePreview'), $('fullscreenPreview'));
+exportControls = mountLiveExport($('controlPanel').querySelector('.panel-scroll'), { canvas, audio, getFile: () => state.audioReady ? state.audioFile : null, sceneName: 'earth-spin' });
 registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });
 new ResizeObserver(resize).observe($('scenePreview'));
 resize();

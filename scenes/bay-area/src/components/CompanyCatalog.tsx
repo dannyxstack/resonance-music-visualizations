@@ -24,6 +24,10 @@ const actionLabels: Record<MotionType, string> = {
   whiteRays: "白色射线",
   yellowRays: "黄色射线",
   purpleRays: "紫色射线",
+  okEmoji: "👌 随拍左右晃",
+  flipLaugh: "水平翻转 😂",
+  flipUpsideDown: "垂直翻转 🙃",
+  walkLegs: "双腿四拍走步",
 };
 
 export function CompanyCatalog({ positions }: CompanyCatalogProps): React.ReactElement {

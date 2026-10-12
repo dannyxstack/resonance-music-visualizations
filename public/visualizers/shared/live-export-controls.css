@@ -1,0 +1,27 @@
+.shared-export-panel {
+  display: grid;
+  gap: .75rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid rgba(120, 190, 240, .24);
+  border-radius: 14px;
+  background: rgba(7, 20, 40, .56);
+  color: #e8f3ff;
+  font: 500 13px/1.45 system-ui, sans-serif;
+}
+.shared-export-panel [hidden] { display: none !important; }
+.shared-export-panel h3 { margin: 0; font-size: 1rem; color: #fff; }
+.shared-export-panel label { display: grid; gap: .3rem; }
+.shared-export-panel select {
+  width: 100%; min-height: 36px; padding: .35rem .55rem;
+  color: #e8f3ff; background: #10233a; border: 1px solid #42617d; border-radius: 8px;
+}
+.shared-export-panel p { margin: 0; color: #b4cde2; }
+.shared-export-panel .is-error { color: #ffb8bd; }
+.shared-export-actions { display: flex; flex-wrap: wrap; gap: .55rem; }
+.shared-export-actions button {
+  min-height: 36px; padding: .45rem .8rem; color: #f5fbff;
+  background: #174f76; border: 1px solid #5ba6d3; border-radius: 8px; cursor: pointer;
+}
+.shared-export-actions button:disabled { opacity: .48; cursor: not-allowed; }
+.shared-export-panel progress { width: 100%; accent-color: #69cfff; }

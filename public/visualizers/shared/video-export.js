@@ -98,7 +98,7 @@ async function encodeCanvasVideoOffline({ audioBuffer, width, height, fps, rende
   }
 }
 
-async function recordCanvasVideoRealtime({ audioBuffer, audioContext, width, height, fps, render, signal, onProgress }) {
+async function recordCanvasVideoRealtime({ audioBuffer, audioContext, width, height, fps, render, signal, onProgress, onStart }) {
   if (!audioBuffer || !Number.isFinite(audioBuffer.duration) || audioBuffer.duration <= 0) throw new Error('请选择可解码的音乐文件。');
   if (!audioContext || typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) {
     throw new Error('此浏览器既无法逐帧编码，也不支持 canvas 实时录制。');
@@ -153,6 +153,7 @@ async function recordCanvasVideoRealtime({ audioBuffer, audioContext, width, hei
       startTime = audioContext.currentTime + .06;
       source.start(startTime);
       started = true;
+      onStart?.();
       const tick = () => {
         if (recorder.state === 'inactive' || signal?.aborted) return;
         const elapsed = Math.max(0, audioContext.currentTime - startTime);

@@ -74,6 +74,49 @@ export function rayPulseAt(time: number, tempo: TempoAnalysis | null, fallback: 
   return clamp(fallback);
 }
 
+function beatPositionAt(time: number, tempo: TempoAnalysis | null, playing: boolean): number | null {
+  if (!playing) return null;
+  if (tempo && tempo.beatInterval > 0) {
+    if (time < tempo.firstBeatTime) return null;
+    return (time - tempo.firstBeatTime) / tempo.beatInterval;
+  }
+  return time * 2;
+}
+
+export function logoFlipAt(time: number, tempo: TempoAnalysis | null, playing: boolean): { scale: number; emoji: boolean } {
+  const beat = beatPositionAt(time, tempo, playing);
+  if (beat === null) return { scale: 1, emoji: false };
+  const index = Math.floor(beat);
+  const phase = beat - index;
+  const progress = clamp(phase / .62);
+  const eased = progress * progress * (3 - 2 * progress);
+  const facing = Math.cos(Math.PI * (index + eased));
+  return { scale: Math.max(.035, Math.abs(facing)), emoji: facing < 0 };
+}
+
+export function walkingLegsAt(time: number, tempo: TempoAnalysis | null, playing: boolean, unit: number, reducedMotion: boolean): {
+  leftX: number; rightX: number; leftLift: number; rightLift: number; direction: number;
+} {
+  const beat = beatPositionAt(time, tempo, playing);
+  if (beat === null) return { leftX: 0, rightX: 0, leftLift: 0, rightLift: 0, direction: 0 };
+  const slot = Math.floor(beat) % 4;
+  const direction = slot === 0 ? -1 : slot === 2 ? 1 : 0;
+  if (!direction) return { leftX: 0, rightX: 0, leftLift: 0, rightLift: 0, direction: 0 };
+  const phase = (beat % 1) * 2;
+  const activeLeg = Math.floor(phase);
+  const stride = Math.sin((phase % 1) * Math.PI) * (reducedMotion ? .35 : 1);
+  const offset = direction * unit * 1.55 * stride;
+  const counterOffset = -direction * unit * .48 * stride;
+  const lift = unit * .52 * stride;
+  return {
+    leftX: activeLeg === 0 ? offset : counterOffset,
+    rightX: activeLeg === 1 ? offset : counterOffset,
+    leftLift: activeLeg === 0 ? lift : 0,
+    rightLift: activeLeg === 1 ? lift : 0,
+    direction,
+  };
+}
+
 export function logoActionAt(
   motion: MotionType,
   time: number,
