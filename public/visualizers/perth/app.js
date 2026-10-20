@@ -962,7 +962,7 @@ function drawImageSkyline(energy, time) {
   ctx.drawImage(skylineImage, sx, sy, sw, sh, dx, dy, dw, dh);
   ctx.restore();
 
-  const night = Math.max(0, 0.82 - base * 0.8 - flash * 0.48);
+  const night = Math.max(0, (1 - base) * 0.88 - flash * 0.48);
   ctx.fillStyle = `rgb(0 5 12 / ${night})`;
   ctx.fillRect(dx, dy, dw, dh);
 

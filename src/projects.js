@@ -1,6 +1,15 @@
 // Add new independent visualizers here; entry and cover are relative to public/.
 export const projects = [
   {
+    id: 'america-states', title: '美国州块 · 节奏跃动', english: 'AMERICA STATES',
+    category: '动态频谱', location: 'CONTIGUOUS UNITED STATES', year: '2026',
+    description: '平放的美国本土地图化为 48 个立体州块，跟随所选音乐能量方法上下跳动。',
+    tags: ['3D 地图', '48 个州', '节奏跳动', 'BPM 预分析'],
+    entry: 'visualizers/america-states/index.html', cover: 'art/america-states.svg',
+    accent: '#a4a1ff', featured: false,
+    instructions: '选择本地音乐后自动分析 BPM 并播放。右侧选择州块跳动能量方法、调整高度和地图视角；按 H 折叠参数面板。',
+  },
+  {
     id: 'america-cities', title: '美国城市 · 立体频谱', english: 'AMERICA CITIES',
     category: '城市天际线', location: 'CONTIGUOUS UNITED STATES', year: '2026',
     description: '一张平放的立体美国地图，人口最多的 50 座城市各自升起一根随音乐变化的频谱柱。',

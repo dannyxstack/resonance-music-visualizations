@@ -5,7 +5,7 @@ import type { AudioFeatures } from '../types/audio';
 import type { TempoAnalysis } from '../types/tempo';
 import type { MotionType } from '../types/company';
 import { ParticleEngine } from '../particles/ParticleEngine';
-import { beatCycleStepAt, logoActionAt, logoFlipAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue, walkingLegsAt } from './logoMotion';
+import { beatCycleStepAt, logoActionAt, logoFlipAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue, thumbsUpArmsAt, walkingLegsAt } from './logoMotion';
 import { energyByMethod } from '../../../../public/visualizers/shared/analysis.js';
 
 const clamp = (value: number): number => Math.max(0, Math.min(1, value));
@@ -166,6 +166,9 @@ export class CanvasMapScene {
       const flip = company.motion === 'flipLaugh' || company.motion === 'flipUpsideDown'
         ? logoFlipAt(time, tempo, playing)
         : null;
+      const thumbs = company.motion === 'thumbsUpArms'
+        ? thumbsUpArmsAt(actionBeat.pulse, actionBeat.index, radius, reducedMotion)
+        : null;
       ctx.save();
       ctx.translate(x, y);
       if (flip) ctx.scale(company.motion === 'flipLaugh' ? flip.scale : 1, company.motion === 'flipUpsideDown' ? flip.scale : 1);
@@ -219,6 +222,21 @@ export class CanvasMapScene {
           ctx.beginPath();
           ctx.moveTo(hipX, radius * .72);
           ctx.lineTo(hipX + offset, radius * 2.35 - lift);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      if (thumbs) {
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(2.4, radius * .2);
+        ctx.strokeStyle = '#dcecff';
+        ctx.shadowColor = company.color;
+        ctx.shadowBlur = 5;
+        for (const [side, handY] of [[-1, thumbs.leftY], [1, thumbs.rightY]]) {
+          ctx.beginPath();
+          ctx.moveTo(side * radius * .75, radius * .18);
+          ctx.quadraticCurveTo(side * radius * 1.35, radius * .3, side * radius * 1.94, handY + radius * .28);
           ctx.stroke();
         }
         ctx.restore();
@@ -282,6 +300,20 @@ export class CanvasMapScene {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(company.fallbackLabel, 0, 1);
       }
+      if (thumbs) {
+        ctx.save();
+        ctx.font = `${Math.max(19, radius * 1.45)}px "Noto Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (const [side, handY] of [[-1, thumbs.leftY], [1, thumbs.rightY]]) {
+          ctx.save();
+          ctx.translate(side * radius * 2.06, handY);
+          if (side < 0) ctx.scale(-1, 1);
+          ctx.fillText('👍', 0, 0);
+          ctx.restore();
+        }
+        ctx.restore();
+      }
       if (company.motion === 'okEmoji') {
         const sway = (actionBeat.index % 2 ? 1 : -1) * actionBeat.pulse * radius * (reducedMotion ? .28 : .9);
         const signY = -radius * 2.55;
@@ -305,7 +337,7 @@ export class CanvasMapScene {
         ctx.font = `${Math.max(17, radius * 1.15)}px "Noto Color Emoji", "Segoe UI Emoji", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('👌', sway, signY);
+        ctx.fillText('❤️', sway, signY);
         ctx.restore();
       }
       ctx.restore();

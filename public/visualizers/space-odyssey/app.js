@@ -8,6 +8,7 @@ import { analyzeOfflineSpectrum } from '../shared/offline-spectrum.js';
 import { drawTextOverlay } from '../shared/text-overlay.js';
 import { exportCanvasVideo, downloadVideo } from '../shared/video-export.js?v=export-3';
 import { drawDancer } from './dancer.js';
+import { drawVideoDancer, loadVideoDancer } from './video-dancer.js';
 
 const $ = id => document.getElementById(id);
 const root = $('odyssey');
@@ -80,6 +81,9 @@ function syncSettings() {
   for (const id of ['volume', 'sensitivity', 'glow', 'dim']) $(`${id}Value`).textContent = `${$(id).value}%`;
   $('starsValue').textContent = $('stars').value;
   for (const id of ['dancerSize', 'dancerDepth', 'dancerMotion', 'dancerGlow']) $(`${id}Value`).textContent = `${$(id).value}%`;
+  const videoMode = $('dancerMode').value === 'video';
+  $('dancerStyle').disabled = videoMode;
+  $('dancerMotion').disabled = videoMode;
   audio.volume = Number($('volume').value) / 100;
   renderBackgroundCache();
   try {
@@ -430,7 +434,8 @@ function drawRoadDancer(pointAt, time, beatPulse) {
   const height = Math.min(point.half * .8, drawing.height * .35) * drawing.settings.dancerSize;
   const energy = drawing.lowDrive ? sampleLowFrequencyDrive(drawing.lowDrive, time)
     : Math.max(beatPulse, (drawing.levels[0] + drawing.levels[1] + drawing.levels[2]) / 3);
-  drawDancer(drawing.ctx, {
+  const draw = mode === 'video' ? drawVideoDancer : drawDancer;
+  draw(drawing.ctx, {
     mode, style: drawing.settings.dancerStyle, x: point.center, y: point.y, height, time,
     bpm: drawing.bpm?.confidence >= .2 ? drawing.bpm.bpm : 110,
     firstBeatTime: firstBeatOffset(drawing.bpm) || 0,
@@ -563,6 +568,7 @@ async function startExport() {
       progress => exportStatus(`正在计算每帧频谱… ${Math.round(progress * 100)}%`, 10 + progress * 20));
     if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
     await document.fonts.ready;
+    if (settings.dancerMode === 'video') await loadVideoDancer();
     const background = document.createElement('canvas');
     const backgroundImage = state.backgroundImage;
     const backgroundReady = Boolean(backgroundImage?.naturalWidth);
@@ -610,7 +616,7 @@ try {
       input.value = String(Math.max(Number(input.min), Math.min(Number(input.max), Number(saved[id]))));
     }
   }
-  if (['skeleton', 'sprite', 'off'].includes(saved.dancerMode)) $('dancerMode').value = saved.dancerMode;
+  if (['video', 'skeleton', 'sprite', 'off'].includes(saved.dancerMode)) $('dancerMode').value = saved.dancerMode;
   if (['shuffle', 'jump', 'moonwalk', 'classic'].includes(saved.dancerStyle)) $('dancerStyle').value = saved.dancerStyle;
   for (const id of ['sceneTitle', 'sceneSubtitle', 'sceneAuthor']) if (typeof saved[id] === 'string') $(id).value = saved[id];
   $('showText').checked = Boolean(saved.showText);
@@ -698,6 +704,11 @@ window.addEventListener('pagehide', () => {
 setPanel(!window.matchMedia('(max-width: 640px)').matches);
 syncSettings();
 setStatus('exportStatus', `编码环境：${window.isSecureContext ? '安全上下文' : '非安全上下文'} · 视频编码 API ${typeof VideoEncoder === 'undefined' ? '不可用' : '可用'} · 实时录制 API ${typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream ? '不可用' : '可用'}`);
+loadVideoDancer().then(() => {
+  $('videoDancerStatus').textContent = '视频剪影已就绪 · 原速循环，低频驱动光晕。';
+}).catch(() => {
+  $('videoDancerStatus').textContent = '视频剪影加载失败，请刷新重试，或切换其他舞者样式。';
+});
 resize();
 setBackground('Nebula-NGC-6302.webp');
 registerScene({ canvas, resize, renderFrame: renderScene, getTime: () => audio.currentTime || 0 });

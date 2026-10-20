@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beatCycleStepAt, logoActionAt, logoFlipAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue, walkingLegsAt } from '../scenes/bay-area/src/visual/logoMotion.ts';
+import { beatCycleStepAt, logoActionAt, logoFlipAt, motionBeatAt, rayPulseAt, rayTargets, shiftHexHue, thumbsUpArmsAt, walkingLegsAt } from '../scenes/bay-area/src/visual/logoMotion.ts';
 import { companies } from '../scenes/bay-area/src/config/companies.ts';
 
 const tempo = { bpm: 120, beatInterval: .5, firstBeatTime: .1, confidence: 1 };
@@ -87,7 +87,17 @@ test('new emoji actions flip on alternate beats and walk legs follow a four-beat
   assert.equal(walkingLegsAt(.725, tempo, true, 20, false).direction, 0);
   assert.ok(walkingLegsAt(1.225, tempo, true, 20, false).leftX > 0);
   assert.equal(walkingLegsAt(1.725, tempo, true, 20, false).direction, 0);
-  for (const motion of ['okEmoji', 'flipLaugh', 'flipUpsideDown', 'walkLegs']) {
+  for (const motion of ['okEmoji', 'thumbsUpArms', 'flipLaugh', 'flipUpsideDown', 'walkLegs']) {
     assert.equal(companies.filter(company => company.motion === motion).length, 1);
   }
+});
+
+test('paired thumbs swing in opposite vertical directions on alternating beats', () => {
+  const idle = thumbsUpArmsAt(0, 0, 20, false);
+  const first = thumbsUpArmsAt(1, 0, 20, false);
+  const next = thumbsUpArmsAt(1, 1, 20, false);
+  assert.equal(idle.leftY, idle.rightY);
+  assert.ok(first.leftY < idle.leftY && first.rightY > idle.rightY);
+  assert.ok(next.leftY > idle.leftY && next.rightY < idle.rightY);
+  assert.ok(Math.abs(thumbsUpArmsAt(1, 0, 20, true).leftY - idle.leftY) > 5);
 });

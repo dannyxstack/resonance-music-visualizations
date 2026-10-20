@@ -20,6 +20,7 @@ export type MotionType =
   | "yellowRays"
   | "purpleRays"
   | "okEmoji"
+  | "thumbsUpArms"
   | "flipLaugh"
   | "flipUpsideDown"
   | "walkLegs";

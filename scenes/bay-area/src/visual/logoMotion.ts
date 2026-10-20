@@ -94,6 +94,11 @@ export function logoFlipAt(time: number, tempo: TempoAnalysis | null, playing: b
   return { scale: Math.max(.035, Math.abs(facing)), emoji: facing < 0 };
 }
 
+export function thumbsUpArmsAt(pulse: number, beatIndex: number, radius: number, reducedMotion: boolean): { leftY: number; rightY: number } {
+  const swing = (beatIndex % 2 === 0 ? 1 : -1) * clamp(pulse) * radius * (reducedMotion ? .55 : .9);
+  return { leftY: -radius * .18 - swing, rightY: -radius * .18 + swing };
+}
+
 export function walkingLegsAt(time: number, tempo: TempoAnalysis | null, playing: boolean, unit: number, reducedMotion: boolean): {
   leftX: number; rightX: number; leftLift: number; rightLift: number; direction: number;
 } {

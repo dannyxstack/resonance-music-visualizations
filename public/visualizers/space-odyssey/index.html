@@ -55,14 +55,15 @@
         <section class="control-section">
           <div class="section-heading"><span>04 / DANCER</span><strong>道路舞者</strong></div>
           <label class="setting-label" for="dancerMode">舞者样式</label>
-          <select id="dancerMode"><option value="skeleton">骨架剪影</option><option value="sprite">透明动画序列</option><option value="off">关闭</option></select>
+          <select id="dancerMode"><option value="video">视频剪影 · 青紫舞者</option><option value="skeleton">骨架剪影</option><option value="sprite">透明动画序列</option><option value="off">关闭</option></select>
           <label class="setting-label" for="dancerStyle">骨架舞步</label>
           <select id="dancerStyle"><option value="shuffle">街舞脚步（CMU）</option><option value="jump">跳跃舞（CMU）</option><option value="moonwalk">太空步（CMU）</option><option value="classic">经典程序动画</option></select>
           <label class="setting-label" for="dancerSize">舞者大小 <output id="dancerSizeValue">100%</output></label><input id="dancerSize" type="range" min="60" max="160" value="100" />
           <label class="setting-label" for="dancerDepth">道路位置 <output id="dancerDepthValue">62%</output></label><input id="dancerDepth" type="range" min="30" max="80" value="62" />
           <label class="setting-label" for="dancerMotion">动作幅度 <output id="dancerMotionValue">100%</output></label><input id="dancerMotion" type="range" min="0" max="150" value="100" />
           <label class="setting-label" for="dancerGlow">人物光晕 <output id="dancerGlowValue">80%</output></label><input id="dancerGlow" type="range" min="0" max="150" value="80" />
-          <p class="status">骨架舞步随 BPM 循环，低频包络控制动作幅度。透明动画序列保留原有动作。</p>
+          <p class="status">视频剪影保留原视频舞步，随音乐播放、暂停和定位；大小、位置、光晕可调。骨架舞步与动作幅度仅用于其他样式。</p>
+          <p id="videoDancerStatus" class="status" role="status">正在加载视频剪影…</p>
         </section>
         <section class="control-section">
           <div class="section-heading"><span>05 / TEXT</span><strong>画面文字</strong></div>

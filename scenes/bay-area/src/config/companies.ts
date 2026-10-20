@@ -62,7 +62,7 @@ for (const motion of ['yellowRays', 'purpleRays'] as const) {
   if (chosen) chosen.motion = motion;
 }
 const newActionCandidates = specs.filter(spec => ['beatJump', 'beatSideStep', 'beatTilt', 'beatGrow', 'beatLogoGrow', 'beatShape'].includes(spec.motion));
-for (const motion of ['okEmoji', 'flipLaugh', 'flipUpsideDown', 'walkLegs'] as const) {
+for (const motion of ['okEmoji', 'thumbsUpArms', 'flipLaugh', 'flipUpsideDown', 'walkLegs'] as const) {
   const index = Math.floor(Math.random() * newActionCandidates.length);
   const [chosen] = newActionCandidates.splice(index, 1);
   if (chosen) chosen.motion = motion;
