@@ -2,6 +2,8 @@
 
 一个可扩展的音乐可视化作品平台。首页提供精选作品、搜索、自动分类和本机收藏；点击作品进入独立效果页，可切换作品、查看使用说明、全屏或返回作品集。所有音乐和用户选择的图片都在浏览器本地处理。
 
+界面支持 English 和中文，首次打开默认 English；首页或作品页右上方可切换，选择会保存在当前浏览器中。独立打开可视化页面时也有语言选择。切换语言不会中断当前音乐或重置画面参数。
+
 当前作品：`america-states`（美国州块节奏地图）、`america-cities`（美国城市立体频谱）、`earth-spin`（点阵地球与赤道频谱）、`bay-area`（湾区科技地图）、`perth`（珀斯天际线）、`neon-spectrum`（可自定义霓虹频谱）、`space-odyssey`（星际声波公路）。
 
 所有作品现在都使用独立的 16:9 视频预览画布，参数面板位于右侧并可折叠，播放区位于底部。播放区第一行提供选曲、播放/暂停和进度条；第二行显示文件名、预分析进度、BPM 与首拍偏移。点击“全屏画面”只将视觉预览区全屏，按 Esc 退出。预览画布里保留视觉标题等画面内容，不包含选曲、播放或设置按钮。每个作品通过 `window.resonanceScene` 暴露相同的预览接口：`canvas`、`getSize()`、`getTime()`、`resize()` 和 `renderFrame({ time, delta })`。所有作品的右侧控制区都提供视频导出；`space-odyssey` 支持逐帧 WebCodecs 编码及实时录制，其余六个作品使用浏览器实时录制，输出包含原音乐的 WebM 文件。实时录制会从歌曲开头播放并耗时约歌曲时长。
@@ -35,7 +37,7 @@ GitHub Actions 会在推送到 `main` 或发起拉取请求时执行 `npm ci`、
 docker compose up -d --build
 ```
 
-打开 http://localhost:8032 。容器在构建时生成完整静态网站，由 Nginx 提供服务；修改源码后重新执行上述命令即可更新。停止服务：
+打开 http://localhost:8032 。容器在构建时生成完整静态网站，Nginx 提供页面并代理 `/api` 到 Go 服务；MySQL 保存账户、额度、收藏和场景配置。修改源码后重新执行上述命令即可更新。停止服务：
 
 ```sh
 docker compose down
@@ -59,7 +61,7 @@ dist/                           可发布的完整静态网站
 
 每个效果通过同源 iframe 独立运行，保留原有音频处理和视觉引擎。珀斯设置面板超高时可滚动。切换或退出时销毁 iframe，从而结束旧页面的播放及动画。作品内的全屏按钮仅展示预览画布，按 Escape 退出。每个效果分别选择音频，平台不会跨作品传递音乐或播放进度。
 
-收藏只保存在当前浏览器的 localStorage，不需要账户，也不跨设备同步。音频选择、分析和播放沿用原项目的本地处理方式。
+游客收藏保存在当前浏览器的 localStorage；登录后会首次合并本机收藏，并以云端收藏同步到其他设备。音频选择、分析和播放沿用原项目的本地处理方式。
 
 ## 增加作品
 
@@ -137,3 +139,18 @@ dist/                           可发布的完整静态网站
 ## 验证范围
 
 构建包含湾区源码的 TypeScript 检查；自动检查覆盖注册表本地资源完整性及搜索、分类、收藏组合逻辑。音频引擎来自原项目，实际播放效果取决于浏览器支持、设备性能及用户选择的音乐。
+
+## 会员最简版
+
+Docker Compose 现在同时启动 Nginx、Go API 和 MySQL。首次部署建议复制 `.env.example` 为 `.env`，设置两个不同的强 MySQL 密码、站点公开地址 `SITE_URL`，再运行 `docker compose up -d --build`。Compose 只提供 HTTP；若在外层反向代理启用 HTTPS，请让代理传递 `Host` 和 `X-Forwarded-Proto`，并将 `SITE_URL` 设置为公开的 HTTPS 地址。MySQL 仅在容器网络开放，数据保存在 `resonance_mysql` 卷。切勿运行 `docker compose down -v`，除非确实要删除账户和配置。
+
+- 游客可选曲、预览所有场景，导出前 30 秒 720p 带角标短片。
+- 邮箱注册的免费用户每 UTC 自然月有 3 次导出，单次最多 5 分钟，720p 带角标；可保存 3 个云端配置。
+- Pro 可导出 1080p 无角标视频，次数不限；可保存 100 个云端配置。
+- 导出失败或取消会释放预留额度；成功编码并发起下载后计次。收藏在登录后同步。各场景右侧面板可以保存和载入参数及文字。配置不会保存音乐或上传的图片，恢复时须重新选择这些素材。
+
+要开放 Pro 购买，请在 Stripe 创建**月付订阅价格**，设置 `STRIPE_SECRET_KEY`、`STRIPE_PRICE_ID` 和 `STRIPE_WEBHOOK_SECRET`，并把 `https://你的站点/api/billing/webhook` 注册为 Webhook。订阅事件至少包括 `checkout.session.completed`、`customer.subscription.created`、`customer.subscription.updated`、`customer.subscription.deleted`。没有这三项配置时，免费会员仍可使用，Pro 购买按钮会提示尚未配置。订阅管理使用 Stripe Customer Portal，需在 Stripe 控制台启用。具体收费价格由 Stripe Price 决定，项目不硬编码价格。
+
+找回密码需要配置 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASSWORD` 和 `SMTP_FROM`；未配置时 API 会明确提示邮件服务尚未配置。账户会话使用 HttpOnly Cookie。浏览器直接进行视频渲染与下载，服务端只管理正常使用流程中的额度与账户；客户端导出限制无法抵御修改前端代码的用户。正式收费前应完成支付、退款、争议与安全审核。
+
+本地使用 `npm run dev` 时，`/api` 会代理到 Compose 的 `127.0.0.1:8032`；请同时运行完整 Compose 站点，或直接使用 8032 端口的生产构建。

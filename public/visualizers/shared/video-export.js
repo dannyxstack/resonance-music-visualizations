@@ -10,6 +10,13 @@ const yieldToBrowser = () => new Promise(resolve => setTimeout(resolve, 0));
 
 export async function exportCanvasVideo(options) {
   const { mode = 'auto', onMode } = options;
+  if (options.maxDuration > 0 && options.audioBuffer?.duration > options.maxDuration) {
+    const original = options.audioBuffer;
+    const length = Math.min(original.length, Math.ceil(options.maxDuration * original.sampleRate));
+    const clipped = new AudioBuffer({ length, numberOfChannels: original.numberOfChannels, sampleRate: original.sampleRate });
+    for (let ch = 0; ch < original.numberOfChannels; ch++) clipped.copyToChannel(original.getChannelData(ch).subarray(0, length), ch);
+    options = { ...options, audioBuffer: clipped };
+  }
   const hasWebCodecs = typeof VideoEncoder !== 'undefined';
   if (mode === 'offline' && !hasWebCodecs) {
     throw new Error(window.isSecureContext

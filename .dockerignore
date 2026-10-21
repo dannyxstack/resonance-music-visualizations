@@ -31,3 +31,6 @@ test-results
 Thumbs.db
 Desktop.ini
 *.log
+
+*.mp4
+*.webm

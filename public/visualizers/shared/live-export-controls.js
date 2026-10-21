@@ -1,8 +1,9 @@
 import { exportCanvasVideo, downloadVideo } from './video-export.js';
+import { loadSession, beginExport, endExport, drawBrandMark, mountProjectStorage, openAccount } from './membership.js';
 
 // Records the live scene canvas while replaying the selected file from its start.
 // Other scenes can use this without changing their renderer or audio analysis path.
-export function mountLiveExport(container, { canvas, audio, getFile, sceneName, play = () => audio.play(), pause = () => audio.pause(), prepare }) {
+export function mountLiveExport(container, { canvas, audio, getFile, sceneName, play = () => audio.play(), pause = () => audio.pause(), prepare, getSceneConfig, applySceneConfig }) {
   const section = document.createElement('section');
   section.className = 'shared-export-panel';
   section.setAttribute('aria-label', '视频导出');
@@ -15,6 +16,12 @@ export function mountLiveExport(container, { canvas, audio, getFile, sceneName, 
     <progress data-export-progress max="100" value="0" hidden></progress>
     <p data-export-status role="status" aria-live="polite">选择音乐后可导出 WebM 视频</p>`;
   container.append(section);
+  const projectStorage = mountProjectStorage(container, sceneName, { getSceneConfig, applySceneConfig });
+  const entitlements = document.createElement('p');
+  section.insertBefore(entitlements, section.querySelector('.shared-export-actions'));
+  const updateEntitlements = async () => { const data = await loadSession(); const p = data.policy; entitlements.textContent = p.tier === 'pro' ? 'Pro：1080p、无角标、不限次数' : p.tier === 'free' ? `免费：本月剩余 ${Math.max(0, 3 - (p.usedExports || 0))} 次；单次最多 5 分钟，720p，带角标` : '游客：30 秒、720p、带角标'; size.querySelector('option[value="1920x1080"]').disabled = p.tier !== 'pro'; if (p.tier !== 'pro') size.value = '1280x720'; };
+  const accountButton = document.createElement('button'); accountButton.type = 'button'; accountButton.textContent = '账户 / 升级'; accountButton.onclick = openAccount; section.querySelector('.shared-export-actions').append(accountButton);
+  const fullButton = document.createElement('button'); fullButton.type = 'button'; fullButton.textContent = '制作完整视频'; fullButton.onclick = async () => { const current = await loadSession(); if (current.policy.tier === 'guest') openAccount(); else start(); }; section.querySelector('.shared-export-actions').append(fullButton);
   const element = selector => section.querySelector(selector);
   const startButton = element('[data-export-start]');
   const cancelButton = element('[data-export-cancel]');
@@ -34,6 +41,7 @@ export function mountLiveExport(container, { canvas, audio, getFile, sceneName, 
   size.addEventListener('change', save);
   fpsInput.addEventListener('change', save);
 
+  void updateEntitlements();
   let controller = null;
   const sync = () => { startButton.disabled = !getFile() || Boolean(controller); };
   const setStatus = (message, failed = false) => {
@@ -60,17 +68,23 @@ export function mountLiveExport(container, { canvas, audio, getFile, sceneName, 
     setProgress(0);
     sync();
     let context;
+    let reservationId = null;
+    let completed = false;
     try {
       context = new AudioContext();
       // Resume in the click handler so browser autoplay policy permits recording.
       void context.resume().catch(() => {});
+      const permit = await beginExport();
+      reservationId = permit.id || null;
+      const policy = permit.policy;
+      if (width > policy.maxWidth) throw new Error('当前套餐不支持该分辨率，请选择 720p 或升级 Pro。');
       if (prepare) await prepare();
       const buffer = await context.decodeAudioData(await file.arrayBuffer());
       if (active.signal.aborted || getFile() !== file) throw new DOMException('Export cancelled', 'AbortError');
       setStatus('正在实时录制…');
       setProgress(3);
       const result = await exportCanvasVideo({
-        mode: 'realtime', audioBuffer: buffer, audioContext: context, width, height, fps, signal: active.signal,
+        mode: 'realtime', audioBuffer: buffer, audioContext: context, width, height, fps, signal: active.signal, maxDuration: policy.maxSeconds,
         onStart: () => {
           audio.currentTime = 0;
           void Promise.resolve(play()).catch(() => active.abort());
@@ -79,6 +93,7 @@ export function mountLiveExport(container, { canvas, audio, getFile, sceneName, 
           if (getFile() !== file) { active.abort(); return; }
           if (!audio.paused && Math.abs(audio.currentTime - time) > .15 && time < buffer.duration - .2) audio.currentTime = time;
           target.drawImage(canvas, 0, 0, width, height);
+          if (policy.watermark) drawBrandMark(target, width, height);
         },
         onProgress: fraction => {
           const percent = Math.round(fraction * 100);
@@ -89,6 +104,9 @@ export function mountLiveExport(container, { canvas, audio, getFile, sceneName, 
       if (active.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
       const basename = file.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_') || sceneName;
       downloadVideo(result, `${basename}-${sceneName}`);
+      completed = true;
+      await endExport(reservationId, true); reservationId = null;
+      await updateEntitlements();
       setProgress(100);
       setStatus('导出完成：WebM，包含原音乐');
     } catch (error) {
@@ -100,6 +118,7 @@ export function mountLiveExport(container, { canvas, audio, getFile, sceneName, 
         try { audio.currentTime = previousTime; } catch {}
         if (resumePlayback) void Promise.resolve(play()).catch(() => {});
       }
+      if (reservationId && !completed) await endExport(reservationId, false).catch(() => {});
       if (context) void context.close();
       if (controller === active) controller = null;
       cancelButton.hidden = true;
@@ -114,6 +133,7 @@ export function mountLiveExport(container, { canvas, audio, getFile, sceneName, 
     controller?.abort();
     audio.removeEventListener('loadedmetadata', sync);
     audio.removeEventListener('emptied', sync);
+    projectStorage.dispose();
     section.remove();
   };
   sync();

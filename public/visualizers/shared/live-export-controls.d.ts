@@ -11,4 +11,6 @@ export function mountLiveExport(container: HTMLElement, options: {
   play?: () => Promise<void> | void;
   pause?: () => void;
   prepare?: () => Promise<void> | void;
+  getSceneConfig?: () => unknown;
+  applySceneConfig?: (config: Record<string, unknown>) => void;
 }): LiveExportControls;

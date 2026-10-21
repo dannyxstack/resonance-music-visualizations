@@ -12,3 +12,4 @@
 .transport-secondary .track-name{color:#eef2ff}
 .preview-fullscreen-button{padding:7px 10px;border:1px solid #ffffff45;border-radius:6px;background:#26314a;color:#f1f5ff;cursor:pointer}
 @media(max-width:700px){.transport-panel{border-radius:0;padding:10px}.odyssey>.transport-panel,.visualizer>.transport-panel{grid-row:4}.transport-primary{gap:7px}.transport-secondary{grid-template-columns:1fr 1fr}.transport-secondary>*{font-size:10px}}
+.standalone-language-select{position:absolute;right:12px;top:12px;z-index:1000;background:#191e24;color:#eef1f4;border:1px solid #56616e;border-radius:6px;padding:6px 8px;font:12px system-ui,sans-serif;cursor:pointer}

@@ -7,6 +7,7 @@ import { analyzeLowFrequencyFile, buildLowFrequencyDrive, sampleLowFrequencyDriv
 import { analyzeOfflineSpectrum } from '../shared/offline-spectrum.js';
 import { drawTextOverlay } from '../shared/text-overlay.js';
 import { exportCanvasVideo, downloadVideo } from '../shared/video-export.js?v=export-3';
+import { beginExport, endExport, drawBrandMark, mountProjectStorage, openAccount, loadSession } from '../shared/membership.js';
 import { drawDancer } from './dancer.js';
 import { drawVideoDancer, loadVideoDancer } from './video-dancer.js';
 
@@ -547,8 +548,14 @@ async function startExport() {
   exportStatus('正在等待节奏分析…', 0);
   syncControls();
   let decodeContext;
+  let reservationId = null;
+  let completed = false;
   let activeExportMode = exportMode === 'realtime' || (exportMode === 'auto' && typeof VideoEncoder === 'undefined') ? 'realtime' : 'offline';
   try {
+    const permit = await beginExport();
+    reservationId = permit.id || null;
+    const policy = permit.policy;
+    if (width > policy.maxWidth) throw new Error('当前套餐不支持该分辨率，请选择 720p 或升级 Pro。');
     if (exportMode === 'offline' && typeof VideoEncoder === 'undefined') {
       throw new Error(window.isSecureContext
         ? '当前页面无法使用 WebCodecs。请选择「自动选择」或「实时录制」。'
@@ -576,12 +583,13 @@ async function startExport() {
     const name = file.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_') || 'space-odyssey';
     exportStatus(activeExportMode === 'realtime' ? '正在实时录制…耗时约为歌曲时长' : '正在逐帧渲染与编码…', 30);
     const result = await exportCanvasVideo({
-      audioBuffer, audioContext: decodeContext, width, height, fps, mode: exportMode, signal: controller.signal,
+      audioBuffer, audioContext: decodeContext, width, height, fps, mode: exportMode, signal: controller.signal, maxDuration: policy.maxSeconds,
       metadata: { title: settings.text.title || name, author: settings.text.author },
       render: ({ context, time, frame, delta }) => {
         const start = frame * BAR_COUNT;
         renderScene(time, delta, { context, width, height, background, backgroundReady },
           { ...features, levels: spectrum.levels.subarray(start, start + BAR_COUNT) }, settings);
+        if (policy.watermark) drawBrandMark(context, width, height);
       },
       onMode: mode => {
         activeExportMode = mode;
@@ -593,11 +601,14 @@ async function startExport() {
     if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
     exportStatus('视频已完成，正在保存…', 100);
     downloadVideo(result, `${name}-space-odyssey`);
+    completed = true;
+    await endExport(reservationId, true); reservationId = null;
     exportStatus(`导出完成：${result.extension.replace('.', '').toUpperCase()}，包含原音乐`, 100);
   } catch (error) {
     if (error?.name === 'AbortError') exportStatus('已取消导出。', 0);
     else exportStatus(`导出失败：${error?.message || '未知错误'}`, null, true);
   } finally {
+    if (reservationId && !completed) await endExport(reservationId, false).catch(() => {});
     if (decodeContext) void decodeContext.close();
     if (state.exportController === controller) state.exportController = null;
     $('cancelExport').hidden = true;
@@ -716,3 +727,13 @@ bindAnalysisSummary($('bpmStatus'), $('lowEnvelopeStatus'), $('transportAnalysis
 bindPreviewFullscreen($('scenePreview'), $('fullscreenPreview'));
 new ResizeObserver(resize).observe($('scenePreview'));
 state.frame = requestAnimationFrame(drawFrame);
+
+const memberContainer = document.querySelector('#controlPanel .panel-scroll') || document.querySelector('#controlPanel');
+if (memberContainer) {
+  mountProjectStorage(memberContainer, 'space-odyssey');
+  const memberActions = document.createElement('div'); memberActions.className = 'member-panel';
+  memberActions.innerHTML = '<p data-entitlements>正在读取导出权益…</p><button type="button" data-account>账户 / 升级</button> <button type="button" data-full>制作完整视频</button>';
+  memberActions.querySelector('[data-account]').onclick = openAccount; memberActions.querySelector('[data-full]').onclick = async () => { const p = (await loadSession()).policy; if (p.tier === 'guest') openAccount(); else void startExport(); }; memberContainer.append(memberActions);
+  const update = async () => { const p = (await loadSession()).policy; memberActions.querySelector('[data-entitlements]').textContent = p.tier === 'pro' ? 'Pro：1080p、无角标、不限次数' : p.tier === 'free' ? `免费：本月剩余 ${Math.max(0, 3 - (p.usedExports || 0))} 次；单次 5 分钟、720p、带角标` : '游客：30 秒、720p、带角标'; $('exportSize').querySelector('option[value="1920x1080"]').disabled = p.tier !== 'pro'; if (p.tier !== 'pro') $('exportSize').value = '1280x720'; };
+  void update(); window.addEventListener('resonance-auth-change', update);
+}

@@ -3,4 +3,49 @@ services:
     build: .
     ports:
       - "8032:80"
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
+  api:
+    build: ./server
+    environment:
+      MYSQL_HOST: mysql:3306
+      MYSQL_USER: resonance
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-change-this-password}"
+      MYSQL_DATABASE: resonance
+      SITE_URL: "${SITE_URL:-http://localhost:8032}"
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_PRICE_ID: "${STRIPE_PRICE_ID:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/server", "-healthcheck"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: resonance
+      MYSQL_USER: resonance
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-change-this-password}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-change-this-root-password}"
+    volumes:
+      - resonance_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+volumes:
+  resonance_mysql:

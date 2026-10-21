@@ -32,6 +32,8 @@ export default function App(): React.ReactElement {
   const analysisTokenRef = useRef(0);
   const selectedFileRef = useRef<File | null>(null);
   const exportMountRef = useRef<HTMLDivElement | null>(null);
+  const sceneConfigRef = useRef({ masterIntensity, bpmMethod, energyMethod, nodePositions });
+  sceneConfigRef.current = { masterIntensity, bpmMethod, energyMethod, nodePositions };
   const animationMode: BrandAnimationMode = "safe-wrapper";
 
   useEffect(() => {
@@ -57,6 +59,13 @@ export default function App(): React.ReactElement {
       audio: audio.engine.audio,
       getFile: () => selectedFileRef.current,
       sceneName: 'bay-area',
+      getSceneConfig: () => sceneConfigRef.current,
+      applySceneConfig: (config: Record<string, unknown>) => {
+        if (typeof config.masterIntensity === 'number') setMasterIntensity(Math.max(.25, Math.min(1.2, config.masterIntensity)));
+        if (typeof config.bpmMethod === 'string') setBpmMethod(config.bpmMethod);
+        if (typeof config.energyMethod === 'string') setEnergyMethod(config.energyMethod);
+        if (config.nodePositions && typeof config.nodePositions === 'object') setNodePositions(config.nodePositions as Record<string, { x: number; y: number }>);
+      },
       play: audio.play,
       pause: audio.pause,
     });
