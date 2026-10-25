@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { projects } from '../src/projects.js';
+import { CITY_GDP, CITY_LIGHT_COLORS } from '../public/visualizers/earth-spin/city-lights.js';
 
 function translator() {
   const window = { addEventListener() {} };
@@ -41,4 +42,21 @@ test('static scene controls have an English translation', () => {
       assert.doesNotMatch(i18n.translate(label), /[\u3400-\u9fff]/, `${scene}: ${label}`);
     }
   }
+});
+
+test('dynamic account, export, city, and API messages contain no Chinese in English mode', () => {
+  const i18n = translator();
+  for (const source of [
+    'user@example.com · 免费 · 本月已导出 0/3 次',
+    '免费：本月剩余 2 次；单次最多 5 分钟，720p，带角标',
+    '正在实时录制… 50%',
+    '正在尝试兼容解码：track.mp3',
+    '当前套餐不支持该分辨率，请选择 720p 或升级 Pro。',
+    '邮箱或密码错误',
+    '巴拿马城 *',
+    '默认珀斯天际线',
+    '已保存配置',
+  ]) assert.doesNotMatch(i18n.translate(source), /[\u3400-\u9fff]/, source);
+  for (const city of CITY_GDP) assert.doesNotMatch(i18n.translate(city.name), /[\u3400-\u9fff]/, city.name);
+  for (const color of CITY_LIGHT_COLORS) assert.doesNotMatch(i18n.translate(color.label), /[\u3400-\u9fff]/, color.label);
 });

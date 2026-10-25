@@ -110,7 +110,7 @@ function route() {
   document.title = `BeatLuma · ${i18n.language === 'zh' ? '音乐可视化空间' : 'Music Visualization Space'}`;
   const match = location.hash.match(/^#\/experience\/([^/]+)$/);
   if (match) renderExperience(match[1]); else renderHome();
-  if (location.hash.startsWith('#/account')) openAccount();
+  if (location.hash.startsWith('#/account')) openAccount('register');
   i18n.refresh();
   const current = match && projects.find(project => project.id === match[1]);
   document.title = current ? `${i18n.language === 'zh' ? current.title : current.en.title} · BeatLuma`
