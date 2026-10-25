@@ -3,11 +3,13 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { copyFile } from 'node:fs/promises';
+import './build-launch-pages.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 process.chdir(root);
 // These static visualizer pages are served without Vite's module transform.
 // Ship the pinned browser bundle so exports also work in the Docker/Nginx build.
 await copyFile('src/membership.js', 'public/visualizers/shared/membership.js');
+await copyFile('src/site.js', 'public/visualizers/shared/site.js');
 await copyFile('node_modules/mediabunny/dist/bundles/mediabunny.min.mjs', 'public/visualizers/shared/vendor/mediabunny.min.js');
 await copyFile('node_modules/mediabunny/LICENSE', 'public/visualizers/shared/vendor/MEDIABUNNY-LICENSE');
 const checked = spawnSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'scenes/bay-area/tsconfig.app.json'], { stdio: 'inherit' });

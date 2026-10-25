@@ -90,7 +90,14 @@ func subscriptionHasPrice(obj map[string]any, priceID string) bool {
 	}
 	return false
 }
+func (a *app) billingReady() bool {
+	return a.billingProvider == "stripe" && a.stripeKey != "" && a.stripePrice != "" && a.stripeWebhook != ""
+}
 func (a *app) checkout(w http.ResponseWriter, r *http.Request) {
+	if !a.billingReady() {
+		fail(w, 503, "Pro 购买尚未开放")
+		return
+	}
 	u := a.require(w, r)
 	if u == nil {
 		return

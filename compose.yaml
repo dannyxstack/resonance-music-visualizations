@@ -15,6 +15,7 @@ services:
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-change-this-password}"
       MYSQL_DATABASE: resonance
       SITE_URL: "${SITE_URL:-http://localhost:8032}"
+      BILLING_PROVIDER: "${BILLING_PROVIDER:-none}"
       STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
       STRIPE_PRICE_ID: "${STRIPE_PRICE_ID:-}"
       STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"

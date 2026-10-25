@@ -4,10 +4,31 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 )
+
+func TestCheckoutDisabledUntilExplicitlyConfigured(t *testing.T) {
+	a := &app{stripeKey: "legacy-key", stripePrice: "legacy-price", stripeWebhook: "legacy-webhook"}
+	if a.billingReady() {
+		t.Fatal("legacy credentials must not enable purchases during the Dodo launch")
+	}
+	w := httptest.NewRecorder()
+	a.checkout(w, httptest.NewRequest("POST", "/api/billing/checkout", nil))
+	if w.Code != 503 {
+		t.Fatalf("disabled checkout returned %d", w.Code)
+	}
+	a.billingProvider = "dodo"
+	if a.billingReady() {
+		t.Fatal("unimplemented Dodo adapter must not advertise checkout readiness")
+	}
+	a.billingProvider = "stripe"
+	if !a.billingReady() {
+		t.Fatal("explicit legacy Stripe configuration should remain supported")
+	}
+}
 
 func TestStripeSignature(t *testing.T) {
 	payload := []byte(`{"id":"evt_test","type":"checkout.session.completed"}`)

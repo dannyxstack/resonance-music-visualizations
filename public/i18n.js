@@ -4,6 +4,7 @@
   const KEY = 'resonance:language';
   const translations = [
     // Gallery and navigation
+    ['账户', 'Account'], ['注册即同意', 'I agree to'], ['服务条款', 'Terms of Service'], ['隐私说明', 'Privacy Policy'], ['查看方案', 'View plans'], ['Pro 购买尚未开放；当前不会收费。', 'Pro purchasing is not open. You will not be charged.'],
     ['音乐可视化空间', 'Music Visualization Space'], ['首页', 'Home'], ['主导航', 'Main navigation'],
     ['探索作品', 'Explore'], ['我的收藏', 'My favorites'], ['收藏', 'Favorites'],
     ['让声音，', 'Give sound '], ['有迹可循。', 'a visible form.'],
@@ -260,7 +261,7 @@
     ['04 / DANCER', '04 / 舞者'], ['05 / TEXT', '05 / 文字'],
     ['06 / EXPORT', '06 / 导出'],
     // Membership and cloud configuration
-    ['账户 / 升级', 'Account / Upgrade'], ['制作完整视频', 'Make full video'], ['RESONANCE 账户', 'RESONANCE Account'],
+    ['账户 / 升级', 'Account / Upgrade'], ['制作完整视频', 'Make full video'], ['BeatLuma 账户', 'BeatLuma Account'],
     ['登录', 'Sign in'], ['注册', 'Create account'], ['找回密码', 'Reset password'],
     ['邮箱', 'Email'], ['密码', 'Password'], ['发送重置邮件', 'Send reset email'],
     ['升级 Pro', 'Upgrade to Pro'], ['管理订阅', 'Manage subscription'], ['退出登录', 'Sign out'],

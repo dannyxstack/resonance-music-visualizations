@@ -22,7 +22,7 @@ i18n.addTranslations(projects.flatMap(project => [
 ]));
 try { const stored = JSON.parse(localStorage.getItem('resonance:favorites') || '[]'); if (Array.isArray(stored)) state.favorites = stored.filter(id => projects.some(p => p.id === id)); } catch {}
 const asset = path => `${import.meta.env.BASE_URL}${path}`;
-const logo = `<a class="logo" href="#" aria-label="RESONANCE 首页"><span class="logo-mark">${icon('wave')}</span>RESONANCE<span class="logo-dot">®</span></a>`;
+const logo = `<a class="logo" href="#" aria-label="BeatLuma 首页"><span class="logo-mark">${icon('wave')}</span>BeatLuma</a>`;
 const languageControl = `<label class="language-control" data-i18n-skip><span class="sr-only">Language / 语言</span><select data-language-select aria-label="Language / 语言"><option value="en">English</option><option value="zh">中文</option></select></label>`;
 function bindLanguage() {
   const select = document.querySelector('[data-language-select]');
@@ -31,7 +31,7 @@ function bindLanguage() {
   select.addEventListener('change', () => i18n.setLanguage(select.value));
 }
 let cleanup = () => {};
-const accountControl = `<button class="account-link" data-account type="button">Account / 账户</button>`;
+const accountControl = `<button class="account-link" data-account type="button">账户</button>`;
 function bindAccount() { document.querySelector('[data-account]')?.addEventListener('click', openAccount); }
 async function syncFavorites(email) { try { const data = await api('/favorites'); const key = `resonance:favorites-merged:${email}`; const firstSync = !localStorage.getItem(key); const next = (firstSync ? [...new Set([...state.favorites, ...data.sceneIds])] : data.sceneIds).filter(id => projects.some(p => p.id === id)); state.favorites = next; localStorage.setItem('resonance:favorites', JSON.stringify(next)); if (firstSync) { await api('/favorites', { method: 'PUT', body: JSON.stringify({ sceneIds: next }) }); localStorage.setItem(key, '1'); } if (document.querySelector('#project-grid')) renderCards(); } catch {} }
 onSession(data => { window.__memberLoggedIn = Boolean(data.email); if (data.email) void syncFavorites(data.email); });
@@ -46,11 +46,11 @@ function saveFavorite(id) {
 
 function renderHome() {
   const featured = projects.find(p => p.featured) || projects[0];
-  app.innerHTML = `<header class="header">${logo}<nav aria-label="主导航"><a class="active" href="#collection">探索作品 <span>${String(projects.length).padStart(2, '0')}</span></a><button id="my-favorites">${icon('heart')} 我的收藏</button></nav><span class="header-note"><i></i> SOUND INTO SIGHT</span>${accountControl}${languageControl}</header>
-  <main class="home"><section class="intro"><div><div class="eyebrow"><span></span> AN INDEPENDENT VISUAL EXPERIENCE</div><h1>让声音，<span>有迹可循。</span></h1><p>在城市、光影与数字世界之间，找到属于你的音乐形状。</p></div><div class="intro-side">用耳朵聆听。<br>用眼睛感受。<span>VOLUME 001 — ${featured.year}</span></div></section>
+  app.innerHTML = `<header class="header">${logo}<nav aria-label="主导航"><a class="active" href="#collection">探索作品 <span>${String(projects.length).padStart(2, '0')}</span></a><button id="my-favorites">${icon('heart')} 我的收藏</button></nav><a class="pricing-link" href="${asset('pricing.html')}">价格方案</a>${accountControl}${languageControl}</header>
+  <main class="home"><section class="intro"><div><div class="eyebrow"><span></span> AN INDEPENDENT VISUAL EXPERIENCE</div><h1>让声音，<span>有迹可循。</span></h1><p>用自己的音乐，创作可发布的视觉作品。无需安装，音频与图片在本地处理。</p><div class="intro-actions"><a class="primary" href="#collection">免费开始创作</a><a class="text-link" href="${asset('pricing.html')}">查看价格方案 ${icon('arrow')}</a></div></div><div class="intro-side">用耳朵聆听。<br>用眼睛感受。<span>VOLUME 001 — ${featured.year}</span></div></section>
   <section class="hero" aria-label="精选作品"><img src="${asset(featured.cover)}" alt="${featured.title}精选场景"/><div class="hero-shade"></div><div class="hero-top"><span class="feature-label"><i></i> 本期精选 / FEATURED</span><span class="hero-index">01 / ${String(projects.length).padStart(2, '0')}</span></div><div class="hero-content"><span class="eyebrow">${featured.location}</span><h2>${featured.title}</h2><p>${featured.description}</p><a class="primary" href="#/experience/${featured.id}">进入视听空间 ${icon('arrow')}</a></div><div class="hero-caption"><span class="mini-wave">▂ ▅ ▃ ▇ ▄ ▂ ▆ ▃ ▅</span><span>YOUR MUSIC. YOUR UNIVERSE.</span></div></section>
   <section id="collection" class="collection"><div class="collection-heading"><div><span class="eyebrow">THE COLLECTION</span><h2>探索视听世界 <span id="result-count"></span></h2></div><p>每一首音乐，都有另一种打开方式。</p></div><div class="toolbar"><div class="filters" role="group" aria-label="作品分类">${['全部作品', ...new Set(projects.map(p => p.category))].map(c => `<button data-category="${c}" class="filter">${c}</button>`).join('')}<button class="filter favorite-filter" id="favorite-filter">${icon('heart')} 收藏</button></div><label class="search">${icon('search')}<input id="search" type="search" placeholder="搜索风格、城市、关键词…" aria-label="搜索作品"/><kbd>/</kbd></label></div><div class="grid" id="project-grid"></div></section>
-  <section class="closing"><span class="closing-symbol">${icon('wave')}</span><div><h3>世界还在生长，下一种共振即将发生。</h3><p>更多城市，更多风格，更多音乐的可能。</p></div><span class="closing-note">AN EVER-GROWING COLLECTION ${icon('arrow')}</span></section></main><footer><span>© ${new Date().getFullYear()} RESONANCE</span><span>为音乐而生 · 在浏览器中感受</span><span><i></i> 音频仅在本地处理</span></footer>`;
+  <section class="closing"><span class="closing-symbol">${icon('wave')}</span><div><h3>继续探索你的下一种音乐画面。</h3><p>更多城市，更多风格，更多音乐的可能。</p></div><span class="closing-note">AN EVER-GROWING COLLECTION ${icon('arrow')}</span></section></main><footer class="launch-footer"><div><span>© ${new Date().getFullYear()} BeatLuma</span><span class="studio-credit">A product by <a href="https://novakitestudio.com" rel="noopener">Novakite Studio</a></span><span><i></i> 音频仅在本地处理</span></div><nav aria-label="Footer"><a href="${asset('pricing.html')}">价格方案</a><a href="${asset('about.html')}">关于</a><a href="${asset('contact.html')}">联系我们</a><a href="${asset('terms.html')}">服务条款</a><a href="${asset('privacy.html')}">隐私说明</a><a href="${asset('refunds.html')}">退款与取消</a></nav></footer>`;
   const search = document.querySelector('#search');
   bindLanguage(); bindAccount();
   search.value = state.query;
@@ -78,8 +78,8 @@ function renderCards() {
 function renderExperience(id) {
   const p = projects.find(project => project.id === id);
   if (!p) { app.innerHTML = `<div class="not-found">${logo}<h1>这个视听空间尚未收录。</h1><a class="primary" href="#">返回作品集 ${icon('arrow')}</a></div>`; return; }
-  document.title = `${i18n.language === 'zh' ? p.title : p.en.title} · RESONANCE`;
-  app.innerHTML = `<main class="experience"><header class="experience-header"><a class="back" href="#collection" aria-label="返回作品集">${icon('back')}<span>作品集</span></a><span class="divider"></span><div class="experience-title"><span>${p.english}</span><strong>${p.title}</strong></div><div class="experience-actions"><label class="sr-only" for="scene-switch">切换作品</label><select id="scene-switch">${projects.map(item => `<option value="${item.id}" ${item.id === p.id ? 'selected' : ''}>${item.title}</option>`).join('')}</select><button id="help" aria-expanded="false">使用说明</button><button id="fullscreen" aria-label="全屏效果">${icon('expand')}<span>全屏</span></button>${accountControl}${languageControl}</div></header><div id="help-panel" class="help-panel" hidden>${p.instructions} 音频仅在本地处理。切换作品或返回作品集会停止当前播放。</div><div class="scene-frame"><iframe title="${p.title}音乐可视化" src="${asset(p.entry)}" allow="autoplay; fullscreen" allowfullscreen></iframe></div><div class="experience-status"><span><i></i> ${p.location}</span><span>选择音乐，开始你的视听体验</span><span id="scene-status" role="status">正在加载场景…</span></div></main>`;
+  document.title = `${i18n.language === 'zh' ? p.title : p.en.title} · BeatLuma`;
+  app.innerHTML = `<main class="experience"><header class="experience-header"><a class="back" href="#collection" aria-label="返回作品集">${icon('back')}<span>作品集</span></a><span class="divider"></span><div class="experience-title"><span>${p.english}</span><strong>${p.title}</strong></div><div class="experience-actions"><label class="sr-only" for="scene-switch">切换作品</label><select id="scene-switch">${projects.map(item => `<option value="${item.id}" ${item.id === p.id ? 'selected' : ''}>${item.title}</option>`).join('')}</select><button id="help" aria-expanded="false">使用说明</button><button id="fullscreen" aria-label="全屏效果">${icon('expand')}<span>全屏</span></button><a class="pricing-link" href="${asset('pricing.html')}" target="_blank" rel="noopener">价格方案</a>${accountControl}${languageControl}</div></header><div id="help-panel" class="help-panel" hidden>${p.instructions} 音频仅在本地处理。切换作品或返回作品集会停止当前播放。</div><div class="scene-frame"><iframe title="${p.title}音乐可视化" src="${asset(p.entry)}" allow="autoplay; fullscreen" allowfullscreen></iframe></div><div class="experience-status"><span><i></i> ${p.location}</span><span>选择音乐，开始你的视听体验</span><span id="scene-status" role="status">正在加载场景…</span></div></main>`;
   bindLanguage(); bindAccount();
   const frame = document.querySelector('iframe');
   const timer = setTimeout(() => { document.querySelector('#scene-status').textContent = '加载较慢，可刷新页面重试'; }, 15000);
@@ -107,21 +107,21 @@ function renderExperience(id) {
 function route() {
   // Removing the old iframe releases its audio context and animation loops.
   cleanup(); cleanup = () => {};
-  document.title = `RESONANCE · ${i18n.language === 'zh' ? '音乐可视化空间' : 'Music Visualization Space'}`;
+  document.title = `BeatLuma · ${i18n.language === 'zh' ? '音乐可视化空间' : 'Music Visualization Space'}`;
   const match = location.hash.match(/^#\/experience\/([^/]+)$/);
   if (match) renderExperience(match[1]); else renderHome();
   if (location.hash.startsWith('#/account')) openAccount();
   i18n.refresh();
   const current = match && projects.find(project => project.id === match[1]);
-  document.title = current ? `${i18n.language === 'zh' ? current.title : current.en.title} · RESONANCE`
-    : `RESONANCE · ${i18n.language === 'zh' ? '音乐可视化空间' : 'Music Visualization Space'}`;
+  document.title = current ? `${i18n.language === 'zh' ? current.title : current.en.title} · BeatLuma`
+    : `BeatLuma · ${i18n.language === 'zh' ? '音乐可视化空间' : 'Music Visualization Space'}`;
   if (location.hash === '#collection') requestAnimationFrame(() => document.querySelector('#collection')?.scrollIntoView()); else window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
 window.addEventListener('resonance-language-change', () => {
   const current = projects.find(project => location.hash === `#/experience/${project.id}`);
-  document.title = current ? `${i18n.language === 'zh' ? current.title : current.en.title} · RESONANCE`
-    : `RESONANCE · ${i18n.language === 'zh' ? '音乐可视化空间' : 'Music Visualization Space'}`;
+  document.title = current ? `${i18n.language === 'zh' ? current.title : current.en.title} · BeatLuma`
+    : `BeatLuma · ${i18n.language === 'zh' ? '音乐可视化空间' : 'Music Visualization Space'}`;
 });
 route();
 

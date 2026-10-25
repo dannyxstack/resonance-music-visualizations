@@ -1,0 +1,103 @@
+import { writeFile } from 'node:fs/promises';
+import { site } from '../src/site.js';
+
+const root = new URL('../public/', import.meta.url);
+const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pairs = [];
+const t = (zh, en) => { pairs.push([zh, en]); return escape(en); };
+const p = (zh, en) => `<p>${t(zh, en)}</p>`;
+const section = (zh, en, body) => `<section><h2>${t(zh, en)}</h2>${body}</section>`;
+const links = () => [
+  ['pricing', '价格方案', 'Pricing'], ['about', '关于', 'About'], ['contact', '联系我们', 'Contact'],
+  ['terms', '服务条款', 'Terms of Service'], ['privacy', '隐私说明', 'Privacy Policy'], ['refunds', '退款与取消', 'Refund & Cancellation Policy'],
+].map(([slug, zh, en]) => `<a href="./${slug}.html">${t(zh, en)}</a>`).join('');
+const support = () => site.supportEmail
+  ? `<a href="mailto:${escape(site.supportEmail)}">${escape(site.supportEmail)}</a>`
+  : p('客服邮箱正在设置中，付费购买尚未开放。', 'Our support email is being set up. Paid purchases are not open.');
+const operator = () => `<p>BeatLuma · ${escape(site.studio)} · Australia</p>`
+  + (site.legalName ? `<p>${t('经营者', 'Operator')}: ${escape(site.legalName)}</p>` : '')
+  + (site.abn ? `<p>ABN: ${escape(site.abn)}</p>` : '');
+
+const notice = p('目前可使用游客及注册免费版。Pro 月付方案已公布，购买尚未开放；当前不会向你收费。', 'Guest and registered Free access are available. The Pro monthly plan is published, but purchasing is not open. You will not be charged at this stage.');
+const price = `US$${site.proMonthlyPrice}`;
+const featureList = entries => `<ul>${entries.map(([zh, en]) => `<li>${t(zh, en)}</li>`).join('')}</ul>`;
+const pricing = `<div class="launch-notice" role="note">${notice}</div><div class="plan-grid">
+<article class="plan"><span class="eyebrow">EXPLORE</span><h2>${t('游客', 'Guest')}</h2><div class="price">US$0</div>${p('先用自己的音乐看效果。', 'See your own music come to life.')}${featureList([
+  ['所有场景选曲与预览', 'Choose local music and preview every scene'], ['导出前 30 秒短片', 'Export the first 30 seconds'], ['最高 720p，带 BeatLuma 角标', 'Up to 720p with a BeatLuma watermark'], ['无需注册，无需绑卡', 'No account or card required'],
+])}<a class="button" href="./#collection">${t('开始体验', 'Try BeatLuma')}</a></article>
+<article class="plan"><span class="eyebrow">CREATE</span><h2>${t('注册免费版', 'Free')}</h2><div class="price">US$0</div>${p('制作并发布你的第一条作品。', 'Make and publish your first music video.')}${featureList([
+  ['每 UTC 自然月 3 次导出', '3 exports per calendar month (UTC)'], ['单次最长 5 分钟，最高 720p', 'Up to 5 minutes per export at 720p'], ['带 BeatLuma 角标', 'BeatLuma watermark included'], ['保存 3 个云端配置', 'Save 3 cloud configurations'], ['登录后跨设备同步收藏', 'Sync favorites when signed in'],
+])}<a class="button" href="./#/account">${t('免费注册 / 登录', 'Sign up / Sign in')}</a></article>
+<article class="plan featured"><span class="eyebrow">PUBLISH</span><h2>Pro</h2><div class="price">${price}<small>${t('/ 月', '/ month')}</small></div>${p('为持续创作提供更清晰的画面。', 'Higher-quality output for regular creators.')}${featureList([
+  ['最高 1080p，无 BeatLuma 角标', 'Up to 1080p without a BeatLuma watermark'], ['导出次数及曲目时长无套餐限制', 'No plan-based export count or track-length limit'], ['保存 100 个云端配置', 'Save 100 cloud configurations'], ['全部现有场景及画面参数', 'All current scenes and visual controls'],
+])}<button class="button" disabled>${t('购买尚未开放', 'Purchasing not open')}</button><p class="fine">${t('月付订阅；开放后自动续费，可取消下次续费。', 'Monthly subscription; once available, renews automatically until canceled.')}</p></article></div>
+${section('开始前你需要知道', 'Before you start',
+  p('价格以美元计。购买开放后，适用税费和最终应付金额会在确认付款前展示。当前没有付费预订，也不会收集银行卡。', 'Prices are in US dollars. When purchasing opens, applicable taxes and the final total will be shown before payment confirmation. We do not take paid pre-orders or collect card details at this stage.')
+  + p('视频在你的浏览器中渲染。实际时长、分辨率与导出成功率受设备、内存、编码器和浏览器支持影响；Pro 不包含云端渲染。', 'Videos render in your browser. Practical duration, resolution and export success depend on your device, memory, codecs and browser support. Pro does not include cloud rendering.')
+  + p('多数场景导出 WebM，实时录制耗时约为片段时长。星际声波公路在支持的浏览器中可使用逐帧导出并优先输出 MP4；不保证所有设备或场景都支持 MP4。', 'Most scenes export WebM in real time, taking approximately the clip duration. Space Odyssey can use frame-by-frame export and prefer MP4 in supported browsers. MP4 is not available on every device or scene.')
+  + p('云端配置仅保存参数与文字，不保存音乐和上传的图片。重新打开配置或换设备后，需要重新选择本地素材。导出失败或取消不消耗免费额度；成功编码并发起下载后计次。', 'Cloud configurations save settings and text, not music or imported images. Reopening a configuration or changing devices requires selecting local media again. Failed or canceled exports do not use Free credits; an export counts after successful encoding and download initiation.'))}
+${section('常见问题', 'Questions',
+  `<h3>${t('我的音乐会被上传吗？', 'Is my music uploaded?')}</h3>` + p('你选择的音乐、图片及生成的视频在浏览器本地处理。账户、收藏及主动保存的配置通过服务器存储。', 'Your selected music, images and generated video are processed locally in the browser. Accounts, favorites and configurations you choose to save are stored on the server.')
+  + `<h3>${t('能发布或用于商业项目吗？', 'Can I publish or use the output commercially?')}</h3>` + p('你可以在拥有必要权利的范围内发布和商业使用导出视频。BeatLuma 会员不提供第三方音乐、商标、人物或图片的授权。请特别检查自己选择的素材及场景中的第三方内容。', 'You may publish and commercially use exports to the extent you hold the necessary rights. A BeatLuma plan does not license third-party music, trademarks, likenesses or images. Check your chosen media and any third-party content in a scene.')
+  + `<h3>${t('现在能购买 Pro 吗？', 'Can I buy Pro now?')}</h3>` + p('暂不能。现有产品可以免费体验；完成收款开通和支付交付测试后，才会开放 Pro 购买。', 'Not yet. The working product is available to try for free. Pro purchasing will open after payment onboarding and fulfillment testing are complete.'))}`;
+
+const about = section('让节奏发光', 'Let the beat become light',
+  p('BeatLuma 是 Novakite Studio 旗下的浏览器音乐可视化工具。选择本地音乐，让城市、地球、霓虹和星际公路随声音变化，再导出带有原音乐的视频。', 'BeatLuma is a browser-based music visualization tool by Novakite Studio. Choose local music, bring cities, the Earth, neon and cosmic roads to life with sound, and export video with your audio.')
+  + p('无需安装桌面软件。建议在电脑浏览器中创作；音频分析、画面生成和视频编码依赖设备与浏览器能力。', 'No desktop installation is required. A desktop browser is recommended for creation; audio analysis, visuals and video encoding depend on your device and browser.')
+  + `<a class="button" href="./#collection">${t('探索场景', 'Explore scenes')}</a>`)
+  + section('工作室', 'The studio', operator() + p('Novakite Studio 是注册于澳大利亚的商业名称。BeatLuma 是产品名称；工作室未来可以发布其他独立工具，各产品的账户与付费权益以各自说明为准。', 'Novakite Studio is an Australian registered business name. BeatLuma is a product name. The studio may release other tools; each product has its own account and plan terms.') + `<a href="${site.studioUrl}" rel="noopener">novakitestudio.com ↗</a>`);
+
+const contact = section('产品与账户支持', 'Product and account support', operator() + support()
+  + p('请提供你的账户邮箱、场景名称、浏览器及问题描述。无需发送完整音乐文件、密码或银行卡信息。', 'Include your account email, scene name, browser and a description of the problem. Do not send full music files, passwords or card information.'))
+  + section('付款与退款', 'Billing and refunds', p('当前尚未开放购买。如果你看到声称代表 BeatLuma 收款的链接，请先核实来源。正式购买开放后，付款收据和本站会提供相应支持方式。', 'Purchasing is not open at present. Verify the source of any link claiming to collect payment for BeatLuma. Once purchasing opens, receipts and this site will provide the relevant support routes.') + `<a href="./refunds.html">${t('查看退款与取消政策', 'Read the refund and cancellation policy')}</a>`);
+
+const terms = section('产品与经营信息', 'Product and operator', operator()
+  + p('这些条款适用于 BeatLuma 网站及音乐可视化工具。BeatLuma 是 Novakite Studio 旗下产品，不是独立公司。使用本服务即表示你接受这些条款。', 'These terms apply to the BeatLuma website and music visualization tool. BeatLuma is a product by Novakite Studio, not a separate company. By using the service you agree to these terms.'))
+  + section('使用资格与账户', 'Use and accounts', p('你需要有权接受本条款；未成年人应由监护人同意并监督使用。请提供准确邮箱、妥善保管密码，并对账户中的行为负责。不得尝试破坏服务、获取他人数据或绕过正常访问限制。', 'You must have authority to accept these terms; minors need guardian consent and supervision. Provide an accurate email, keep your password secure and take responsibility for account activity. Do not disrupt the service, access others’ data or bypass normal access restrictions.'))
+  + section('素材与作品权利', 'Media and output rights', p('你保留自己音乐、图片、文字及原创内容的权利。你应拥有用于处理、导出和发布的必要授权。不得使用本服务侵犯版权、商标、隐私或其他权利。订阅不授予第三方素材或场景中第三方标识的许可。', 'You retain rights to your music, images, text and original content. You must have the permissions needed to process, export and publish them. Do not infringe copyright, trademarks, privacy or other rights. A subscription does not license third-party media or third-party marks appearing in scenes.'))
+  + section('方案与交付', 'Plans and delivery', p('各方案的分辨率、导出时长、额度和云端配置数量见价格页。当前提供游客及注册免费使用；Pro 购买尚未开放，不接受付费预订。', 'Plan resolution, duration, credits and configuration limits are listed on the pricing page. Guest and registered Free access are currently available. Pro purchasing is not open and paid pre-orders are not accepted.')
+    + p('购买开放后，Pro 将作为按月自动续费的数字服务提供，付款确认后开通相应账户权限。付款前会展示价格、适用税费、续费条件及结账服务方。购买不会包含任何未列明的未来功能。', 'When purchasing opens, Pro will be a monthly auto-renewing digital service, with account access activated after confirmed payment. Price, applicable taxes, renewal terms and the checkout provider will be shown before purchase. Purchases do not include unlisted future features.'))
+  + section('设备与服务限制', 'Device and service limitations', p('视频在本机浏览器中生成，不提供云渲染承诺。长音频、高分辨率及高帧率可能受设备内存和浏览器编码能力限制。我们不保证所有音频格式、设备或浏览器均可使用。请先用免费体验确认兼容性。', 'Video is generated in your browser; cloud rendering is not promised. Long audio, high resolutions and frame rates may be limited by memory and browser encoding capabilities. Not all audio formats, devices or browsers are supported. Try the free experience to check compatibility.'))
+  + section('取消、退款及消费者权利', 'Cancellation, refunds and consumer rights', p('取消与退款按退款政策办理。任何条款均不排除或限制适用法律下不可排除的权利，包括 Australian Consumer Law 下的消费者保障。', 'Cancellation and refunds follow our refund policy. Nothing in these terms excludes or limits rights that cannot lawfully be excluded, including consumer guarantees under Australian Consumer Law.') + `<a href="./refunds.html">${t('退款与取消政策', 'Refund and cancellation policy')}</a>`)
+  + section('变更与联系', 'Changes and contact', p('我们可能更新功能及本条款。影响已有付费订阅的重要变更会在生效前通过适当方式通知。请通过联系页提出问题。', 'We may update features and these terms. Material changes affecting existing paid subscriptions will be communicated appropriately before they take effect. Use our contact page for questions.') + `<a href="./contact.html">${t('联系我们', 'Contact')}</a>`);
+
+const privacy = section('本地处理的素材', 'Media processed on your device', p('你选择的音乐、上传到页面的图片以及生成的视频均在浏览器本地处理；本功能不会将这些文件上传到我们的服务器。我们不会使用这些文件训练模型。', 'Selected music, images imported into the page and generated videos are processed locally in your browser. These features do not upload those files to our servers. We do not use those files to train models.'))
+  + section('我们保存的数据', 'Data we store', p('注册后，服务器保存邮箱、密码哈希、账户创建时间、会话、会员状态、导出记录、收藏及你主动保存的场景配置。云端配置可能包含你输入的标题、作者等文字，请勿在其中填写敏感信息。密码不以明文存储。', 'When you register, our server stores your email, password hash, account creation time, sessions, plan status, export records, favorites and scene configurations you choose to save. Configurations can include titles, author names and other text you enter; avoid sensitive information. Passwords are not stored as plaintext.')
+  + p('浏览器本机存储用于语言选择、收藏和部分场景偏好；登录使用会话 Cookie。主机服务可能产生请求地址、IP 地址及错误等必要运行日志。', 'Browser storage holds language choices, favorites and some scene preferences. Sign-in uses a session cookie. Hosting services may generate necessary operational logs such as request paths, IP addresses and errors.'))
+  + section('用途与服务提供方', 'Purposes and service providers', p('我们使用这些信息来提供登录、保存配置、同步收藏、管理导出额度、处理支持请求及保护服务。网站托管、数据库和邮件提供方会在提供这些服务所需的范围内处理数据，处理地点可能在澳大利亚境外。', 'We use this information for sign-in, configuration storage, favorite syncing, export limits, support and service protection. Hosting, database and email providers process data as needed to provide these services; processing may occur outside Australia.')
+  + p('当前尚未开放付款，也不会在本站收集银行卡。将来启用外部结账时，我们会说明支付提供方，并更新相关数据处理说明。', 'Payments are not open and this site does not collect card details. When external checkout is enabled, we will identify the payment provider and update the relevant data processing information.'))
+  + section('保留、删除与联系', 'Retention, deletion and contact', p('账户与配置在提供服务所需期间保留。你可以在场景面板删除已保存配置；如需删除账户或查询个人数据，请通过联系页提出申请。依法需要保留的交易、安全或争议处理记录可能保留更久。你可以在浏览器设置中清除本机存储。', 'Accounts and configurations are retained as needed to provide the service. Delete saved configurations from the scene panel; contact us to request account deletion or access to your personal data. Transaction, security or dispute records may be retained longer where required by law. Local storage can be cleared in browser settings.') + `<a href="./contact.html">${t('隐私与账户联系入口', 'Privacy and account contact')}</a>`);
+
+const refunds = `<div class="launch-notice">${p('当前没有开放付费购买；下述规则用于购买正式开放后的 Pro 月付方案。', 'Paid purchasing is not open. The following rules apply to the Pro monthly plan once purchasing becomes available.')}</div>`
+  + section('退款申请', 'Refund requests', p('首次购买 Pro 后 14 天内，你可以联系支持申请首次付款的全额退款。请提供账户邮箱、订单号和简要说明。重复扣款、未能开通权限或其他付款错误，请及时联系我们核实处理。', 'Within 14 days of your first Pro purchase, you may contact support to request a full refund of the initial payment. Include your account email, order ID and a short explanation. Contact us promptly about duplicate charges, access not being activated or other payment errors.'))
+  + section('续费与取消', 'Renewal and cancellation', p('Pro 按月自动续费。购买开放后，你可以通过提供的订阅管理入口取消下次续费；如无法使用该入口，请联系支持协助。取消后可使用至已付款周期结束，不再续费。一般不按剩余天数退还当前周期费用，但法定权利及付款错误处理不受影响。', 'Pro renews monthly. Once purchasing is open, cancel the next renewal through the provided subscription management route, or contact support if it is unavailable. Access continues until the paid period ends and no further renewal is taken. We generally do not prorate the current period, without affecting statutory rights or remedies for payment errors.'))
+  + section('处理与到账', 'Processing and return of funds', p('退款经确认后退回原付款方式，实际到账时间取决于付款平台及银行。获准全额退款后，相应付费权限会终止。', 'Approved refunds are returned to the original payment method. Arrival time depends on the payment provider and bank. The corresponding paid access ends when a full refund is approved.'))
+  + section('法定消费者权利', 'Statutory consumer rights', p('本政策不限制你在 Australian Consumer Law 或其他适用法律下的权利。即使超过上述 14 天，如果依法应提供补救或退款，我们仍会履行相应义务。', 'This policy does not limit rights under Australian Consumer Law or other applicable laws. We will provide remedies or refunds required by law even outside the 14-day period.') + `<a href="./contact.html">${t('联系支持', 'Contact support')}</a>`);
+
+const pages = [
+  ['pricing', '价格方案', 'Pricing', pricing], ['about', '关于 BeatLuma', 'About BeatLuma', about],
+  ['contact', '联系我们', 'Contact', contact], ['terms', '服务条款', 'Terms of Service', terms],
+  ['privacy', '隐私说明', 'Privacy Policy', privacy], ['refunds', '退款与取消', 'Refund & Cancellation Policy', refunds],
+];
+
+// Include launch navigation and home copy in the same bilingual dictionary.
+[
+  ['价格方案', 'Pricing'], ['关于', 'About'], ['联系我们', 'Contact'], ['服务条款', 'Terms of Service'], ['隐私说明', 'Privacy Policy'], ['退款与取消', 'Refund & Cancellation Policy'],
+  ['用自己的音乐，创作可发布的视觉作品。无需安装，音频与图片在本地处理。', 'Turn your own music into videos you can publish. No installation; audio and images stay on your device.'],
+  ['查看价格方案', 'View pricing'], ['免费开始创作', 'Start creating for free'], ['查看方案', 'View plans'],
+  ['Pro 购买尚未开放；当前不会收费。', 'Pro purchasing is not open. You will not be charged.'],
+  ['继续探索你的下一种音乐画面。', 'Find the next visual world for your music.'],
+  ['BeatLuma 账户', 'BeatLuma Account'],
+].forEach(pair => pairs.push(pair));
+
+for (const [slug, zh, en, content] of pages) {
+  const title = t(zh, en);
+  pairs.push([`${zh} · BeatLuma`, `${en} · BeatLuma`]);
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#0b0d10"><meta name="description" content="${escape(en)} for BeatLuma, a browser music visualization tool by Novakite Studio."><link rel="canonical" href="${site.url}/${slug}.html"><link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./site.css"><title>${en} · BeatLuma</title></head>
+<body><header class="site-header"><a class="brand" href="./">BeatLuma<span>BY NOVAKITE STUDIO</span></a><nav aria-label="Navigation"><a href="./#collection">${t('探索作品', 'Explore')}</a><a href="./pricing.html">${t('价格方案', 'Pricing')}</a><a href="./contact.html">${t('联系我们', 'Contact')}</a></nav><label data-i18n-skip><span class="sr-only">Language / 语言</span><select data-language-select aria-label="Language / 语言"><option value="en">English</option><option value="zh">中文</option></select></label></header>
+<main class="site-main"><div class="eyebrow">BEATLUMA / ${slug.toUpperCase()}</div><h1>${title}</h1>${['terms', 'privacy', 'refunds'].includes(slug) ? `<p class="fine"><span>${t('更新日期', 'Last updated')}</span>: ${site.updated}</p>` : ''}${content}</main>
+<footer><p>© ${site.updated.slice(0,4)} BeatLuma · ${escape(site.studio)}</p><nav aria-label="Footer">${links()}</nav></footer><script src="./i18n.js"></script><script src="./launch-i18n.js"></script><script src="./site-pages.js"></script></body></html>`;
+  await writeFile(new URL(`${slug}.html`, root), html);
+}
+await writeFile(new URL('launch-i18n.js', root), `// Generated by scripts/build-launch-pages.mjs.\nwindow.resonanceI18n.addTranslations(${JSON.stringify(pairs)});\n`);

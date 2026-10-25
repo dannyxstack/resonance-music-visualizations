@@ -1,4 +1,4 @@
-# RESONANCE · 音乐可视化空间
+# BeatLuma · 音乐可视化空间
 
 一个可扩展的音乐可视化作品平台。首页提供精选作品、搜索、自动分类和本机收藏；点击作品进入独立效果页，可切换作品、查看使用说明、全屏或返回作品集。所有音乐和用户选择的图片都在浏览器本地处理。
 
@@ -149,8 +149,17 @@ Docker Compose 现在同时启动 Nginx、Go API 和 MySQL。首次部署建议�
 - Pro 可导出 1080p 无角标视频，次数不限；可保存 100 个云端配置。
 - 导出失败或取消会释放预留额度；成功编码并发起下载后计次。收藏在登录后同步。各场景右侧面板可以保存和载入参数及文字。配置不会保存音乐或上传的图片，恢复时须重新选择这些素材。
 
-要开放 Pro 购买，请在 Stripe 创建**月付订阅价格**，设置 `STRIPE_SECRET_KEY`、`STRIPE_PRICE_ID` 和 `STRIPE_WEBHOOK_SECRET`，并把 `https://你的站点/api/billing/webhook` 注册为 Webhook。订阅事件至少包括 `checkout.session.completed`、`customer.subscription.created`、`customer.subscription.updated`、`customer.subscription.deleted`。没有这三项配置时，免费会员仍可使用，Pro 购买按钮会提示尚未配置。订阅管理使用 Stripe Customer Portal，需在 Stripe 控制台启用。具体收费价格由 Stripe Price 决定，项目不硬编码价格。
+本次以 BeatLuma 品牌启动，计划使用 Dodo Payments。默认 `BILLING_PROVIDER=none`，游客及免费会员可用，价格页公布 Pro 方案但不接受付款。旧 Stripe 适配器保留用于兼容，不会因为历史密钥仍在环境中而自动开启购买。Dodo 尚未接入；开户审核、创建商品、服务端结账、签名验证的 Webhook、会员开通与退款/取消同步完成后才可启用真实购买。详见 [LAUNCH.md](LAUNCH.md)。
 
 找回密码需要配置 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASSWORD` 和 `SMTP_FROM`；未配置时 API 会明确提示邮件服务尚未配置。账户会话使用 HttpOnly Cookie。浏览器直接进行视频渲染与下载，服务端只管理正常使用流程中的额度与账户；客户端导出限制无法抵御修改前端代码的用户。正式收费前应完成支付、退款、争议与安全审核。
 
 本地使用 `npm run dev` 时，`/api` 会代理到 Compose 的 `127.0.0.1:8032`；请同时运行完整 Compose 站点，或直接使用 8032 端口的生产构建。
+
+
+## BeatLuma 品牌与公开页面
+
+公开配置位于 `src/site.js`：品牌、域名、工作室、客服邮箱、经营者法定名称、ABN 与 Pro 美元月价。未提供的经营信息保持空白，不编造。
+
+运行 `npm run build` 或 `npm run dev` 时，`scripts/build-launch-pages.mjs` 生成可直接访问的中英文静态页面：`pricing.html`、`about.html`、`contact.html`、`terms.html`、`privacy.html`、`refunds.html`。这些页面不依赖登录或 API，也可直接用 `node scripts/build-launch-pages.mjs` 更新。编辑生成器而非生成的 HTML。
+
+产品对外名称、导出角标和邮件使用 BeatLuma。为避免现有数据丢失，保留 `resonance:*` 本机存储键、数据库/卷名、Cookie、内部事件与 `window.resonanceScene` 接口。这些是兼容标识，不代表旧品牌仍对外展示。

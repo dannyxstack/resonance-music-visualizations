@@ -7,3 +7,7 @@
 @media(max-width:640px){header.header{gap:8px}.header .language-control select{width:64px;padding:6px 3px;font-size:9px}.header nav{gap:8px}.header .logo{font-size:14px}}
 
 .account-link{background:transparent;color:inherit;border:1px solid currentColor;border-radius:20px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+
+:root .logo{letter-spacing:-.5px;font-size:24px}
+.intro-actions{display:flex;align-items:center;gap:24px;margin-top:24px;flex-wrap:wrap}.text-link{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#c8d5bc}.pricing-link{margin-left:auto;white-space:nowrap;font-size:13px;color:var(--lime)}header.header{gap:28px}.header nav>a:not(.active):after{display:none}.intro p{max-width:660px;line-height:1.9;letter-spacing:0}.launch-footer{gap:30px;align-items:flex-start;padding-left:24px;padding-right:24px}.launch-footer>div{display:flex;flex-direction:column;gap:12px;line-height:1.7}.studio-credit{color:#abb3bd}.launch-footer nav{display:flex;gap:16px;flex-wrap:wrap;max-width:580px;font-size:12px;letter-spacing:0}.launch-footer a:hover{color:var(--lime)}.member-card a{color:#c3f294;text-decoration:underline}.member-card input[type=checkbox]{display:inline-block;width:auto;margin-right:6px}
+@media(max-width:900px){header.header{gap:18px;flex-wrap:wrap;height:auto;min-height:96px;padding-top:18px;padding-bottom:18px}.header nav{height:auto}.header .pricing-link{margin-left:auto}.launch-footer{flex-direction:column}.intro-side{display:none}}

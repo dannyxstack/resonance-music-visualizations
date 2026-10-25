@@ -25,6 +25,7 @@ import (
 type app struct {
 	db                                             *sql.DB
 	stripeKey, stripePrice, stripeWebhook, siteURL string
+	billingProvider                                string
 }
 type account struct {
 	ID                                      int64
@@ -87,6 +88,7 @@ func main() {
 		log.Fatal(err)
 	}
 	a := &app{db: db, stripeKey: os.Getenv("STRIPE_SECRET_KEY"), stripePrice: os.Getenv("STRIPE_PRICE_ID"), stripeWebhook: os.Getenv("STRIPE_WEBHOOK_SECRET"), siteURL: strings.TrimRight(env("SITE_URL", "http://localhost:8032"), "/")}
+	a.billingProvider = env("BILLING_PROVIDER", "none")
 	if err := a.migrate(); err != nil {
 		log.Fatal(err)
 	}
@@ -287,7 +289,7 @@ func (a *app) me(w http.ResponseWriter, r *http.Request) {
 		fail(w, 500, "权益读取失败")
 		return
 	}
-	resp := map[string]any{"policy": p, "billingAvailable": a.stripeKey != "" && a.stripePrice != "" && a.stripeWebhook != ""}
+	resp := map[string]any{"policy": p, "billingAvailable": a.billingReady()}
 	if u != nil {
 		resp["email"] = u.Email
 		resp["hasSubscription"] = u.CustomerID != ""
@@ -328,7 +330,7 @@ func sendResetMail(to, link string) {
 	user := os.Getenv("SMTP_USER")
 	pass := os.Getenv("SMTP_PASSWORD")
 	from := env("SMTP_FROM", user)
-	body := "From: " + from + "\r\nTo: " + to + "\r\nSubject: Resonance password reset\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nReset your password within one hour:\r\n" + link + "\r\n"
+	body := "From: " + from + "\r\nTo: " + to + "\r\nSubject: BeatLuma password reset\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nReset your password within one hour:\r\n" + link + "\r\n"
 	var auth smtp.Auth
 	if user != "" {
 		auth = smtp.PlainAuth("", user, pass, host)

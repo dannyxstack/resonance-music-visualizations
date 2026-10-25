@@ -1,4 +1,6 @@
-const guest = { tier: 'guest', maxSeconds: 30, maxWidth: 1280, watermark: true, maxProjects: 0 };
+import { site, plans } from './site.js';
+const publicRoot = new URL(import.meta.url.includes('/visualizers/shared/') ? '../../' : '../', import.meta.url);
+const guest = { ...plans.find(plan => plan.id === 'guest'), tier: 'guest' };
 let session = null;
 const listeners = new Set();
 export async function api(path, options = {}) {
@@ -18,7 +20,7 @@ export function drawBrandMark(ctx, width, height) {
   const font = Math.max(14, Math.round(width * .016));
   ctx.save(); ctx.font = `700 ${font}px Arial, sans-serif`; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
   const x = width - font * 1.1, y = height - font * .95;
-  const text = 'RESONANCE'; const span = ctx.measureText(text).width;
+  const text = 'BeatLuma'; const span = ctx.measureText(text).width;
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x - span - font * .6, y - font * 1.25, span + font * .9, font * 1.55);
   ctx.fillStyle = 'rgba(255,255,255,.93)'; ctx.fillText(text, x, y);
   ctx.restore();
@@ -45,29 +47,35 @@ function applyConfig(config) {
     element.dispatchEvent(new Event('input', { bubbles: true })); element.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
-function ensureStyle() { if (document.getElementById('member-style')) return; const style = document.createElement('style'); style.id = 'member-style'; style.textContent = `.member-panel{border:1px solid #ffffff36;border-radius:12px;padding:12px;margin:16px 0;color:inherit}.member-panel h3{margin:0 0 8px}.member-panel p{margin:6px 0;font-size:13px;line-height:1.5}.member-panel button,.member-dialog button{cursor:pointer}.member-panel input,.member-panel select{max-width:100%;box-sizing:border-box}.member-panel .member-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.member-dialog{position:fixed;z-index:99999;inset:0;background:#050914dd;display:grid;place-items:center;padding:16px}.member-dialog[hidden]{display:none}.member-card{background:#172132;color:white;max-width:420px;width:100%;padding:24px;border:1px solid #68758b;border-radius:16px;box-shadow:0 14px 60px #0009;font:15px/1.5 Arial,sans-serif}.member-card h2{margin:0 0 12px}.member-card label{display:block;margin:10px 0}.member-card input{display:block;width:100%;box-sizing:border-box;padding:9px;margin-top:4px}.member-card .member-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.member-card button{padding:7px 11px}.member-card [data-message]{min-height:1.4em;color:#ffdc86}`; document.head.append(style); }
+function ensureStyle() { if (document.getElementById('member-style')) return; const style = document.createElement('style'); style.id = 'member-style'; style.textContent = `.member-panel{border:1px solid #ffffff36;border-radius:12px;padding:12px;margin:16px 0;color:inherit}.member-panel h3{margin:0 0 8px}.member-panel p{margin:6px 0;font-size:13px;line-height:1.5}.member-panel button,.member-dialog button{cursor:pointer}.member-panel input,.member-panel select{max-width:100%;box-sizing:border-box}.member-panel .member-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.member-dialog{position:fixed;z-index:99999;inset:0;background:#050914dd;display:grid;place-items:center;padding:16px}.member-dialog[hidden]{display:none}.member-card{background:#172132;color:white;max-width:420px;width:100%;padding:24px;border:1px solid #68758b;border-radius:16px;box-shadow:0 14px 60px #0009;font:15px/1.5 Arial,sans-serif}.member-card [hidden]{display:none!important}.member-card a{color:#c3f294;text-decoration:underline}.member-card input[type=checkbox]{display:inline-block;width:auto;margin-right:6px}.member-card h2{margin:0 0 12px}.member-card label{display:block;margin:10px 0}.member-card input{display:block;width:100%;box-sizing:border-box;padding:9px;margin-top:4px}.member-card .member-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.member-card button{padding:7px 11px}.member-card [data-message]{min-height:1.4em;color:#ffdc86}`; document.head.append(style); }
 export function openAccount() {
   ensureStyle(); let dialog = document.querySelector('.member-dialog');
   if (!dialog) { dialog = document.createElement('div'); dialog.className = 'member-dialog'; dialog.addEventListener('click', event => { if (event.target === dialog) dialog.hidden = true; }); dialog.addEventListener('keydown', event => { if (event.key === 'Escape') dialog.hidden = true; }); document.body.append(dialog); }
   dialog.hidden = false;
   const show = async () => {
     const data = await loadSession(); const p = data.policy;
-    dialog.innerHTML = `<div class="member-card" role="dialog" aria-modal="true" aria-label="账户与会员"><button data-close style="float:right">×</button><h2>RESONANCE 账户</h2><p data-summary></p><div data-body></div><p data-message role="status"></p></div>`;
+    dialog.innerHTML = `<div class="member-card" role="dialog" aria-modal="true" aria-label="账户与会员"><button data-close style="float:right">×</button><h2>BeatLuma 账户</h2><p data-summary></p><div data-body></div><p data-message role="status"></p></div>`;
     dialog.querySelector('[data-close]').onclick = () => { dialog.hidden = true; }; dialog.querySelector('[data-close]').focus();
     const summary = dialog.querySelector('[data-summary]'); const body = dialog.querySelector('[data-body]'); const message = dialog.querySelector('[data-message]');
     summary.textContent = data.email ? `${data.email} · ${p.tier === 'pro' ? 'Pro' : `免费 · 本月已导出 ${p.usedExports || 0}/3 次`}` : '游客：可导出 30 秒 720p 带角标短片';
     if (data.email) {
-      body.innerHTML = `<p>免费版：每月 3 次完整导出，单次最长 5 分钟。Pro：1080p、无角标、不限次数。</p><div class="member-actions"><button data-upgrade>升级 Pro</button><button data-manage>管理订阅</button><button data-logout>退出登录</button></div>`;
+      body.innerHTML = `<p>免费版：每月 3 次完整导出，单次最长 5 分钟。Pro：1080p、无角标、不限次数。</p><p data-billing-note></p><div class="member-actions"><button data-upgrade>查看方案</button><button data-manage>管理订阅</button><button data-logout>退出登录</button></div>`;
+      if (!site.paidPurchasesEnabled || !data.billingAvailable) body.querySelector('[data-billing-note]').textContent = 'Pro 购买尚未开放；当前不会收费。';
       body.querySelector('[data-upgrade]').hidden = p.tier === 'pro';
       body.querySelector('[data-manage]').hidden = !data.hasSubscription;
-      body.querySelector('[data-upgrade]').onclick = async () => { try { const x = await api('/billing/checkout', { method: 'POST' }); window.top.location.assign(x.url); } catch(e) { message.textContent = e.message; } };
+      body.querySelector('[data-upgrade]').onclick = () => { window.top.location.assign(new URL('pricing.html', publicRoot).href); };
       body.querySelector('[data-manage]').onclick = async () => { try { const x = await api('/billing/portal', { method: 'POST' }); window.top.location.assign(x.url); } catch(e) { message.textContent = e.message; } };
       body.querySelector('[data-logout]').onclick = async () => { await api('/logout', { method: 'POST' }); if (window.parent !== window) window.parent.postMessage({ type: 'resonance-auth-change' }, location.origin); await show(); };
     } else {
-      body.innerHTML = `<div class="member-actions"><button data-mode="login">登录</button><button data-mode="register">注册</button><button data-mode="forgot">找回密码</button></div><form data-form><label>邮箱<input name="email" type="email" required autocomplete="email"></label><label data-password>密码<input name="password" type="password" required minlength="10" autocomplete="current-password"></label><button type="submit">登录</button></form>`;
-      const form = body.querySelector('form'); let mode = 'login'; const switchMode = next => { mode = next; form.querySelector('[data-password]').hidden = mode === 'forgot'; form.querySelector('[name=password]').required = mode !== 'forgot'; form.querySelector('button').textContent = { login: '登录', register: '注册', forgot: '发送重置邮件' }[mode]; message.textContent = ''; };
+      body.innerHTML = `<div class="member-actions"><button data-mode="login">登录</button><button data-mode="register">注册</button><button data-mode="forgot">找回密码</button></div><form data-form><label>邮箱<input name="email" type="email" required autocomplete="email"></label><label data-password>密码<input name="password" type="password" required minlength="10" autocomplete="current-password"></label><label data-consent hidden><input type="checkbox" name="consent"> <span data-consent-text></span></label><button type="submit">登录</button></form>`;
+      const form = body.querySelector('form');
+      const consentText = form.querySelector('[data-consent-text]');
+      const translate = value => window.resonanceI18n?.translate(value) || value;
+      consentText.append(document.createTextNode(translate('注册即同意')));
+      for (const [file, label] of [['terms', '服务条款'], ['privacy', '隐私说明']]) { const link = document.createElement('a'); link.href = new URL(file + '.html', publicRoot).href; link.target = '_blank'; link.rel = 'noopener'; link.textContent = translate(label); consentText.append(' ', link); }
+      let mode = 'login'; const switchMode = next => { mode = next; form.querySelector('[data-password]').hidden = mode === 'forgot'; form.querySelector('[name=password]').required = mode !== 'forgot'; form.querySelector('[name=password]').autocomplete = mode === 'register' ? 'new-password' : 'current-password'; form.querySelector('[data-consent]').hidden = mode !== 'register'; form.querySelector('[name=consent]').required = mode === 'register'; form.querySelector('button').textContent = { login: '登录', register: '注册', forgot: '发送重置邮件' }[mode]; message.textContent = ''; };
       body.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => switchMode(button.dataset.mode));
-      form.onsubmit = async event => { event.preventDefault(); try { const fields = Object.fromEntries(new FormData(form)); await api(mode === 'forgot' ? '/password/forgot' : `/${mode}`, { method: 'POST', body: JSON.stringify(fields) }); if (mode === 'forgot') message.textContent = '若邮箱已注册，重置邮件将发送给你。'; else { await show(); window.dispatchEvent(new Event('resonance-auth-change')); if (window.parent !== window) window.parent.postMessage({ type: 'resonance-auth-change' }, location.origin); } } catch(e) { message.textContent = e.message; } };
+      form.onsubmit = async event => { event.preventDefault(); try { const fields = Object.fromEntries(new FormData(form)); delete fields.consent; if (mode === 'forgot') delete fields.password; await api(mode === 'forgot' ? '/password/forgot' : `/${mode}`, { method: 'POST', body: JSON.stringify(fields) }); if (mode === 'forgot') message.textContent = '若邮箱已注册，重置邮件将发送给你。'; else { await show(); window.dispatchEvent(new Event('resonance-auth-change')); if (window.parent !== window) window.parent.postMessage({ type: 'resonance-auth-change' }, location.origin); } } catch(e) { message.textContent = e.message; } };
     }
   };
   void show();
